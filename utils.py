@@ -14,7 +14,7 @@ def get_img(path):
         img = np.stack((img, img, img), -1)
     else:
         h, w, _ = img.shape
-    return img, h, w
+    return img, (h, w)
 
 def get_stereo_img(path_left, path_right):
     left = cv2.imread(path_left, -1)
@@ -25,22 +25,17 @@ def get_stereo_img(path_left, path_right):
         right = np.stack((right, right, right), -1)
     else:
         h, w, _ = left.shape
-    return left, right, h, w
+    return left, right, (h, w)
 
 def get_depth(path, target_size, bits=8):
-    depth_raw = cv2.imread(path, -1)
-    # / (2 ** bits - 1)
+    depth = cv2.imread(path, -1) / (2 ** bits - 1)
     
     h, w = target_size
-    if depth_raw.shape[0] != h or depth_raw.shape[1] != w:
-        depth_raw = cv2.resize(depth_raw, (w, h))
+    if depth.shape[0] != h or depth.shape[1] != w:
+        depth = cv2.resize(depth, (w, h))
 
-    depth = depth_raw / (2 ** bits - 1)
-    # depth = 1.0 / (depth + 0.005)
-    # depth[depth > 100] = 100
     depth = normalize_depth(depth)
-
-    return depth, depth_raw
+    return depth
 
 def get_disparity(path, target_size, bits=8):
     disparity = cv2.imread(path, -1) / (2 ** bits - 1)
@@ -49,7 +44,7 @@ def get_disparity(path, target_size, bits=8):
     if disparity.shape[0] != h or disparity.shape[1] != w:
         disparity = cv2.resize(disparity, (w, h))
     
-    disparity = disparity / w
+    # disparity = disparity / w
 
     return disparity
 
@@ -88,7 +83,6 @@ def normalize_depth(depth):
     depth = 1.0 / (depth + 0.005)
     depth[depth > 100] = 100
     return depth
-    print(f"{np.max(disparity) = }")
 
 
 def color_flow(flow):
@@ -96,6 +90,7 @@ def color_flow(flow):
     flow_16bit = cv2.cvtColor(flow_16bit, cv2.COLOR_BGR2RGB)
     flow_color = flow_colors.flow_to_color(flow[0].numpy(), convert_to_bgr=True)
     return flow_16bit, flow_color
+
 
 def inpaint_img(img, masks):
     img = cv2.inpaint(img, 1 - masks["H"], 3, cv2.INPAINT_TELEA)

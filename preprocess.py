@@ -1,8 +1,7 @@
 import utils
-import using_clib
+# import using_clib
 import geometry  
 import flow_colors
-
 import math
 import torch
 import torch.nn.functional as F
@@ -11,44 +10,36 @@ import cv2
 import ctypes
 import matplotlib.pyplot as plt
 from bilateral_filter import sparse_bilateral_filtering
+import argparse
 
-class VirtualEgoMotion():
-    def __init__(self, h, w, no_sharp=False, another_K=False):
-        self.h = h
-        self.w = w
-        self.no_sharp = no_sharp
-        self.another_K = another_K
-
-        self.K, self.inv_K = VirtualEgoMotion._create_plausible_K(another_K, h, w)
-        self.p0 = VirtualEgoMotion._get_p0(h, w)
-
-        self.backproject_depth = geometry.BackprojectDepth(1, h, w)
-        self.project_3d = geometry.Project3D(1, h, w)
+class Plausible():
+    @staticmethod
+    def f():
+        return 1
 
     @staticmethod
-    def _create_plausible_K(another_K, h, w):
+    def B():
+        return 50
+
+    @staticmethod
+    def K(size, another=False):
+        h, w = size
         K = np.array([[[0.58,    0, 0.5, 0],
                        # [0,    1.92, 0.5, 0],
                        [0,    0.58, 0.5, 0],
                        [0,       0,   1, 0], 
                        [0,       0,   0, 1]]], dtype=np.float32)
 
-        if another_K:
+        if another:
             K[:, :2, :2] *= 2
 
         K[:, 0, :] *= w
         K[:, 1, :] *= h
         return torch.from_numpy(K), torch.from_numpy(np.linalg.pinv(K))
-    
-    @staticmethod
-    def _get_p0(h, w):
-        meshgrid = np.meshgrid(range(w), range(h), indexing="xy")
-        p0 = np.stack(meshgrid, axis=-1).astype(np.float32)   
-        return p0
 
     @staticmethod
-    def _create_random_motion(axisangle_range, axisangle_base, translation_range, translation_base,
-                              another_axisangle=None, another_translation=None):
+    def random_motion(axisangle_range, axisangle_base, translation_range, translation_base,
+                      another_axisangle=None, another_translation=None):
         ax = utils.get_random(math.pi * axisangle_range, math.pi * axisangle_base)
         ay = utils.get_random(math.pi * axisangle_range, math.pi * axisangle_base)
         az = utils.get_random(math.pi * axisangle_range, math.pi * axisangle_base)
@@ -69,270 +60,214 @@ class VirtualEgoMotion():
             T = geometry.transformation_from_parameters(axisangle, translation)
         return T, axisangle, translation
 
-    def forward(self, img, depth, segment=None):
-        """
-            input: img(HWC), depth(HW)
-            output: flow_stereo(HWC), stereo_img_raw(HWC)
-        """
-        if not self.no_sharp:
-            depth = sparse_bilateral_filtering(depth.copy(), img.copy(),
-                                               filter_size=[5, 5], num_iter=2)
 
-        img = torch.from_numpy(np.expand_dims(img, 0))
-        # img = torch.from_numpy(np.expand_dims(img, 0)).to(torch.int16)
-        depth = torch.from_numpy(np.expand_dims(depth, 0)).float()
-        cam_points = self.backproject_depth(depth, self.inv_K)
+class Convert():
+    @staticmethod
+    def depth_to_disparity(depth, size):
+        h, w = size
+        s = utils.get_random(175, 50, random_sign=False)
+        
+        depth_max = np.max(depth)
+        disparity = (1. / depth) * s * depth_max / w
+        return disparity
 
-        T1, axisangle, translation = VirtualEgoMotion._create_random_motion(1. / 36., 1. / 36.,
-                                                                            0.1, 0.1) 
-        # T1, axisangle, translation = VirtualEgoMotion._create_random_motion(1. / 72., 1. / 72.,
-        #                                                                     0.05, 0.05) 
-        p1, z1 = self.project_3d(cam_points, self.K, T1)
-        z1 = z1.reshape(1, self.h, self.w)
+    @staticmethod
+    def disparity_to_flow(disparity, size, random_sign=True):
+        h, w = size
+        flow = np.zeros((1, h, w, 2))
+        flow[0, :, :, 0] = -disparity
+        if random_sign:
+            flow = flow * utils.get_random(0, 1)
+        flow = torch.from_numpy(flow).float()
+        return flow
+
+    @staticmethod
+    def disparity_to_depth(disparity):
+        B, f = Plausible.B(), Plausible.f()
+        depth = B * f / (disparity + 0.005)
+        depth = (np.max(depth) - depth) / (np.max(depth) - np.min(depth))
+        depth = utils.normalize_depth(depth)
+        return depth, B
+
+    @staticmethod
+    def depth_to_random_flow(depth, size, segment=None):
+        h, w = size
+        K, inv_K = Plausible.K(size)
+        backproject_depth = geometry.BackprojectDepth(1, h, w)
+        project_3d = geometry.Project3D(1, h, w)
+
+        depth = torch.from_numpy(depth).unsqueeze(0).float()
+        cam_points = backproject_depth(depth, inv_K)
+
+        T1, axisangle, translation = Plausible.random_motion(1. / 72., 1. / 72., 0.05, 0.05) 
+        p1, z1 = project_3d(cam_points, K, T1)
+        z1 = z1.reshape(1, h, w)
         
         if segment is not None:
             instances, labels = segment
             for l in range(len(labels)):
-                Ti, _, _ = VirtualEgoMotion._create_random_motion(1. / 72., 1. / 72., 0.05, 0.05,
-                                                                  axisangle, translation)
-                pi, zi = self.project_3d(cam_points, self.K, Ti)
-                zi = zi.reshape(1, self.h, self.w)
+                Ti, _, _ = Plausible.random_motion(1. / 108., 1. / 108., 0.02, 0.02,
+                                                    axisangle, translation) 
+                pi, zi = project_3d(cam_points, K, Ti)
+                zi = zi.reshape(1, h, w)
                 p1[instances[l] > 0] = pi[instances[l] > 0]
                 z1[instances[l][:, :, :, 0] > 0] = zi[instances[l][:, :, :, 0] > 0]
 
 
         p1 = (p1 + 1) / 2
-        p1[:, :, :, 0] *= self.w - 1
-        p1[:, :, :, 1] *= self.h - 1
-
-        warped_img = using_clib.forward_warping(img, p1, z1, (self.h, self.w)) 
-
-        flow_stereo = p1 - self.p0
-        stereo_img_raw = warped_img[0, :, :, 0:3]
+        p1[:, :, :, 0] *= w - 1
+        p1[:, :, :, 1] *= h - 1
         
-        masks = {}
-        masks["H"] = warped_img[0 ,:, :, 3:4]
-        masks["M"] = warped_img[0, :, :, 4:5]
-        masks["M"] = 1 - (masks["M"] == masks["H"]).astype(np.uint8)
-        masks["M'"] = cv2.dilate(masks["M"], np.ones((3, 3), np.uint8), iterations=1)
-        masks["P"] = (np.expand_dims(masks["M'"], -1) == masks["M"]).astype(np.uint8)
-        masks["H'"] = masks["H"] * masks["P"]
-
-        return flow_stereo, stereo_img_raw, masks
-
-# class VirtualDisparity():
-#     def __init__(self, h, w, no_sharp=False):
-#         self.h = h
-#         self.w = w
-
-#         self.xs, self.ys = VirtualDisparity._get_xs_ys(h, w) 
-
-#     @staticmethod
-#     def _get_xs_ys(h, w):
-#         xs, ys = np.meshgrid(range(w), range(h))
-#         return torch.from_numpy(xs).float(), torch.from_numpy(ys).float()
-
-#     @staticmethod
-#     def _convert_depth_to_disparity(depth):
-#         s = utils.get_random(175, 50, random_sign=False) / depth.shape[1]
-        
-#         # print(f"{s = }")
-#         depth_max = np.max(depth)
-#         # print(f"{depth_max = }")
-#         disparity = (1. / depth) * s * depth_max
-#         return disparity
-
-#     def forward(self, img, depth):
-#         """
-#             input: img(HWC), depth(HW)
-#             output: disparity(HW), res(HWC)
-#         """
-#         disparity = VirtualDisparity._convert_depth_to_disparity(depth)
-#         img = torch.from_numpy(img).permute(2, 0, 1)
-#         depth = torch.from_numpy(depth)
-        
-#         new_xs = self.xs - disparity
-#         new_xs = ((new_xs / (self.w - 1)) - 0.5) * 2
-#         new_ys = ((self.ys / (self.h - 1)) - 0.5) * 2
-#         sample_pix = torch.stack([new_xs, new_ys], 2)
-        
-#         warped_img = F.grid_sample(img.unsqueeze(0).float(), sample_pix.unsqueeze(0).float(),
-#                                    padding_mode='zeros', align_corners=False)
-#         warped_depth = F.grid_sample(depth.unsqueeze(0).unsqueeze(0).float(), sample_pix.unsqueeze(0).float(),
-#                                      padding_mode='zeros', align_corners=False)
-
-#         stereo_img = warped_img[0].permute(1, 2, 0)
-#         stereo_depth = warped_depth[0, 0]
-#         stereo_depth[(self.xs - disparity) < 0] = 100
-
-#         # disparity, stereo_img = disparity.detach().numpy(), stereo_img.detach().numpy()
-#         stereo_img = stereo_img.detach().numpy()
-#         stereo_depth = stereo_depth.detach().numpy()
-#         # stereo_img = stereo_img_raw
-#         return disparity, stereo_img, stereo_depth
-
-class VirtualDisparity2(VirtualEgoMotion):
-    def __init__(self, h, w, no_sharp=False):
-        super().__init__(h, w, no_sharp)
-
-    @staticmethod
-    def _create_plausible_f():
-        # return 0.5 * 1.3
-        return 1
-
-    @staticmethod
-    def _create_plausible_baseline():
-        # return 0.1 / 1.3
-        return 50
-        B = utils.get_random(0.05, 0.05, random_sign=False)
-        return B
-
-    def forward(self, img, depth, baseline=None, depth_raw=None):
-        """
-            input: img(HWC), depth(HW)
-            output: flow_stereo(HWC), stereo_img_raw(HWC)
-        """
-        if not self.no_sharp:
-            depth = sparse_bilateral_filtering(depth.copy(), img.copy(),
-                                               filter_size=[5, 5], num_iter=2)
-
-        img = torch.from_numpy(np.expand_dims(img, 0))
-        # img = torch.from_numpy(np.expand_dims(img, 0)).to(torch.int32)
-        depth = torch.from_numpy(np.expand_dims(depth, 0)).float()
-        cam_points = self.backproject_depth(depth, self.inv_K)
-        if baseline is None:
-            baseline = VirtualDisparity2._create_plausible_baseline()
-        baseline = baseline / self.w
-        cam_points[:, 0, ...] = cam_points[:, 0, ...] - baseline 
-
-        T1 = torch.eye(4).unsqueeze(0)
-
-        p1, z1 = self.project_3d(cam_points, self.K, T1)
-        z1 = z1.reshape(1, self.h, self.w)
-        
-        p1 = (p1 + 1) / 2
-        p1[:, :, :, 0] *= self.w - 1
-        p1[:, :, :, 1] *= self.h - 1
-
-        # print(f"{self.p0 = }")
-        # print(f"{p1 = }")
-        # print(f"{self.p0.shape = }")
-        # print(f"{p1.shape = }")
+        meshgrid = np.meshgrid(range(w), range(h), indexing="xy")
+        p0 = np.stack(meshgrid, axis=-1).astype(np.float32)   
+        flow = p1 - p0
+        return flow
 
 
-        warped_img = using_clib.forward_warping(img, p1, z1, (self.h, self.w)) 
+def flow_forward_warping(img, flow, depth, size):
+    # print(f"{img.shape = }") (h, w) or (h, w, c)
+    one_channel = (img.ndim == 2)
+    if one_channel:
+        img = np.stack((img, img, img), -1) 
+    h, w = size
+    meshgrid = np.meshgrid(range(w), range(h), indexing="xy")
+    p0 = np.stack(meshgrid, axis=-1).astype(np.float32)
+    p0 = torch.from_numpy(p0).unsqueeze(0)
+    depth = torch.from_numpy(depth).unsqueeze(0).float()
+    p1 = p0 + flow
 
-        flow_stereo = p1 - self.p0
-        stereo_img_raw = warped_img[0, :, :, 0:3]
+    # warped_img = using_clib.forward_warping(img, p1, depth, size) 
+    warped_img = forward_warping(img, p1, depth, size) 
 
-        masks = {}
-        masks["H"] = warped_img[0 ,:, :, 3:4]
-        masks["M"] = warped_img[0, :, :, 4:5]
-        masks["M"] = 1 - (masks["M"] == masks["H"]).astype(np.uint8)
-        masks["M'"] = cv2.dilate(masks["M"], np.ones((3, 3), np.uint8), iterations=1)
-        masks["P"] = (np.expand_dims(masks["M'"], -1) == masks["M"]).astype(np.uint8)
-        masks["H'"] = masks["H"] * masks["P"]
+    res = warped_img[0, :, :, 0] if one_channel else warped_img[0, :, :, 0:3]
 
-        if depth_raw is not None:
-            depth_raw = depth_raw.astype(np.int32)
-            depth_raw = torch.from_numpy(depth_raw)
-            depth = torch.stack((depth_raw, depth_raw, depth_raw), -1)
-        else:
-            depth = torch.stack((depth, depth, depth), -1)
-        warped_depth = using_clib.forward_warping(depth, p1, z1, (self.h, self.w)) 
-        stereo_depth_raw = warped_depth[0, :, :, 0] 
-        # / 255
+    masks = {}
+    masks["H"] = warped_img[0 ,:, :, 3]
+    masks["M"] = warped_img[0, :, :, 4]
+    masks["M"] = 1 - (masks["M"] == masks["H"]).astype(np.uint8)
+    masks["M'"] = cv2.dilate(masks["M"], np.ones((3, 3), np.uint8), iterations=1)
+    masks["P"] = (masks["M'"] == masks["M"]).astype(np.uint8)
+    masks["H'"] = masks["H"] * masks["P"]
+    return res, masks
 
-        return flow_stereo, stereo_img_raw, masks, stereo_depth_raw
+def forward_warping(img, p1, depth, size):
+    # print(f"{img.shape = }")    (h, w, c)
+    # print(f"{depth.shape = }")  (1, h, w)
+    h, w = size
+    safe_y = np.maximum(np.minimum(p1[:, :, :, 1].long(), h - 1), 0)
+    safe_x = np.maximum(np.minimum(p1[:, :, :, 0].long(), w - 1), 0)
+    img = img.reshape((1, h, w, 3))
+    warped = np.zeros((h, w, 5))
+    dlut = np.ones(size) * 1000
+    for i in range(h):
+        for j in range(w):
+            x = safe_x[0, i, j]
+            y = safe_y[0, i, j]
+            if depth[0, i, j] < dlut[y, x]:
+                for c in range(3):
+                    warped[y, x, c] = img[0, i, j, c]
 
-    @staticmethod
-    def _convert_disparity_to_depth(disparity):
-        baseline = VirtualDisparity2._create_plausible_baseline()
-        f = VirtualDisparity2._create_plausible_f()
-        depth = baseline * f / (disparity + 0.005)
-        depth = (np.max(depth) - depth) / (np.max(depth) - np.min(depth))
-        depth = utils.normalize_depth(depth)
-        return depth, baseline
+            warped[y, x, 3] = 1 
+            if dlut[y, x] != 1000:
+                warped[y, x, 4] = 0
+            else:
+                warped[y, x, 4] = 1
+            dlut[y, x] = depth[0, i, j]
 
+    warped = warped.reshape(1, h, w, 5)
+    return warped
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--mono", type=int, default=0, help="use monocular or not")
+    args = parser.parse_args()
+    return args
 
 if __name__ == "__main__":
-    img, h, w = utils.get_img("../im0.jpg") # CHW
-    depth, depth_raw = utils.get_depth("../d0.png", (h, w), 16) # HW
-    # print(f"{np.min(depth_raw) = }")
-    # print(f"{np.max(depth_raw) = }")
-    # depth = depth_raw / (2 ** 16 - 1)
-    # depth = utils.normalize_depth(depth)
-    instances_mask, instances, labels = utils.get_mask("../s0.png", (h, w)) # HW
+    args = parse_args()
 
-    vem = VirtualEgoMotion(h, w)
-    # flow_stereo, stereo_img_raw, masks = vem.forward(img, depth, (instances, labels))
-    flow_stereo, stereo_img_raw, masks = vem.forward(img, depth)
+    if args.mono:
+        img, size = utils.get_img("../im0.jpg") # CHW
+        depth  = utils.get_depth("../d0.png", size, 16) # HW
+        depth = sparse_bilateral_filtering(depth.copy(), img.copy(),
+                                           filter_size=[5, 5], num_iter=2)
+        cv2.imwrite("output/original_img.png", img)
+        plt.imsave("output/original_depth.png", 1 / depth, cmap="magma")
 
-    print(f"{flow_stereo.shape = }")
-    print(f"{flow_stereo.dtype = }")
-    print(f"{torch.min(flow_stereo) = }")
-    print(f"{torch.max(flow_stereo) = }")
-    
-    flow_16bit, flow_color = utils.color_flow(flow_stereo)
-    # stereo_img = utils.inpaint_img(stereo_img_raw, masks)
+        disparity = Convert.depth_to_disparity(depth, size)
+        plt.imsave("output/depth_to_disparity.png", disparity, cmap="magma")
 
-    cv2.imwrite("output/original_img.png", img)
-    cv2.imwrite("output/stereo_img_raw.png", stereo_img_raw)
-    # cv2.imwrite("output/stereo_img.png", stereo_img)
-    cv2.imwrite("output/flow_16bit.png", flow_16bit.astype(np.uint16))
-    cv2.imwrite("output/flow_color.png", flow_color)
-    cv2.imwrite("output/H.png", masks["H"] * 255)
-    cv2.imwrite("output/M.png", masks["M"] * 255)
-    cv2.imwrite("output/P.png", masks["P"] * 255)
-    plt.imsave("output/depth_color.png", 1. / depth, cmap="magma")
-    plt.imsave("output/instance_color.png", instances_mask, cmap="magma")
+        stereo_flow = Convert.disparity_to_flow(disparity, size)
+        stereo_flow_16bit, stereo_flow_color = utils.color_flow(stereo_flow)
+        # cv2.imwrite("output/stereo_flow_16bit.png", stereo_flow_16bit.astype(np.uint16))
+        cv2.imwrite("output/stereo_flow_color.png", stereo_flow_color)
 
-    # vd = VirtualDisparity(h, w)
-    vd = VirtualDisparity2(h, w)
-    disparity, stereo_img, masks, stereo_depth = vd.forward(img, depth, None, depth_raw)
+        stereo_img, stereo_masks = flow_forward_warping(img, stereo_flow, depth, size)
+        stereo_depth, _ = flow_forward_warping(depth, stereo_flow, depth, size)
+        stereo_depth[stereo_depth == 0] = 100
 
-    # print(f"{depth_raw.shape = }")
-    stereo_depth = utils.normalize_depth(stereo_depth)
+        cv2.imwrite("output/stereo_img.png", stereo_img)
+        plt.imsave("output/stereo_depth.png", 1 / stereo_depth, cmap="magma")
+        cv2.imwrite("output/stereo_H.png", stereo_masks["H"] * 255)
+        cv2.imwrite("output/stereo_M.png", stereo_masks["M"] * 255)
 
-    cv2.imwrite("output/stereo_img.png", stereo_img)
-    plt.imsave("output/stereo_depth_color.png", 1. / stereo_depth, cmap="magma")
-    # cv2.imwrite("output/disparity.png", disparity * 20)
-    
-
-    left, right, h, w = utils.get_stereo_img("../left.png", "../right.png")
-
-    disparity = utils.get_disparity("../disparity.png", (h, w))
+        moving_flow = Convert.depth_to_random_flow(stereo_depth, size)
+        moving_flow_16bit, moving_flow_color = utils.color_flow(moving_flow)
+        # cv2.imwrite("output/moving_flow_16bit.png", moving_flow_16bit.astype(np.uint16))
+        cv2.imwrite("output/moving_flow_color.png", moving_flow_color)
 
 
-    test = np.zeros((1, h, w, 2))
-    test[0, :, :, 0] = -disparity * w
-    test = torch.from_numpy(test).float()
-    print(f"{test.shape = }")
-    print(f"{test.dtype = }")
-    print(f"{torch.min(test) = }")
-    print(f"{torch.max(test) = }")
-    flow_16bit, flow_color = utils.color_flow(test)
-    cv2.imwrite("output/test_flow_16bit.png", flow_16bit.astype(np.uint16))
-    cv2.imwrite("output/test_flow_color.png", flow_color)
+        moving_img, _ = flow_forward_warping(stereo_img, moving_flow, stereo_depth, size)
+        moving_depth, _ = flow_forward_warping(stereo_depth, moving_flow, stereo_depth, size)
+        moving_depth[moving_depth == 0] = 100
 
+        moving_masks = {}
+        moving_masks["H"], _ = flow_forward_warping(stereo_masks["H"], moving_flow, stereo_depth, size)
+        moving_masks["M"], _ = flow_forward_warping(stereo_masks["M"], moving_flow, stereo_depth, size)
+        cv2.imwrite("output/moving_img.png", moving_img)
+        plt.imsave("output/moving_depth.png", 1 / moving_depth, cmap="magma")
+        cv2.imwrite("output/moving_H.png", moving_masks["H"] * 255)
+        cv2.imwrite("output/moving_M.png", moving_masks["M"] * 255)
+    else:
+        left, right, size = utils.get_stereo_img("../left.png", "../right.png")
+        disparity = utils.get_disparity("../disparity.png", size)
 
-    vd = VirtualDisparity2(h, w)
-    depth, baseline = VirtualDisparity2._convert_disparity_to_depth(disparity)
-    
+        cv2.imwrite("output/original_left.png", left)
+        cv2.imwrite("output/original_right.png", right)
+        plt.imsave("output/original_disparity.png", disparity, cmap="magma")
 
-    flow_stereo, stereo_img_raw, masks, stereo_depth = vd.forward(left, depth, baseline, None)
-    print(f"{torch.min(flow_stereo) = }")
-    print(f"{torch.max(flow_stereo) = }")
-    flow_16bit, flow_color = utils.color_flow(flow_stereo)
-    # stereo_img = utils.inpaint_img(stereo_img_raw, masks)
-    cv2.imwrite("output/original_left.png", left)
-    cv2.imwrite("output/original_right.png", right)
-    cv2.imwrite("output/disparity_to_flow_16bit.png", flow_16bit.astype(np.uint16))
-    cv2.imwrite("output/disparity_to_flow_color.png", flow_color)
-    plt.imsave("output/disparity_to_depth.png", 1 / depth, cmap="magma")
-    cv2.imwrite("output/disparity_warp_raw.png", stereo_img_raw)
-    # cv2.imwrite("output/disparity_warp.png", stereo_img)
+        depth, baseline = Convert.disparity_to_depth(disparity)
+        depth = sparse_bilateral_filtering(depth.copy(), left.copy(),
+                                           filter_size=[5, 5], num_iter=2)
+        plt.imsave("output/disparity_to_depth.png", 1 / depth, cmap="magma")
 
-    ctypes._reset_cache()
+        stereo_flow = Convert.disparity_to_flow(disparity, size, False)
+        stereo_flow_16bit, stereo_flow_color = utils.color_flow(stereo_flow)
+        # cv2.imwrite("output/stereo_flow_16bit.png", stereo_flow_16bit.astype(np.uint16))
+        cv2.imwrite("output/stereo_flow_color.png", stereo_flow_color)
+        stereo_img, stereo_masks = flow_forward_warping(left, stereo_flow, depth, size)
+        stereo_depth, _ = flow_forward_warping(depth, stereo_flow, depth, size)
+        stereo_depth[stereo_depth == 0] = 100
 
+        cv2.imwrite("output/stereo_img.png", stereo_img)
+        plt.imsave("output/stereo_depth.png", 1 / stereo_depth, cmap="magma")
+        cv2.imwrite("output/stereo_H.png", stereo_masks["H"] * 255)
+        cv2.imwrite("output/stereo_M.png", stereo_masks["M"] * 255)
+
+        moving_flow = Convert.depth_to_random_flow(stereo_depth, size)
+        moving_flow_16bit, moving_flow_color = utils.color_flow(moving_flow)
+        # cv2.imwrite("output/moving_flow_16bit.png", moving_flow_16bit.astype(np.uint16))
+        cv2.imwrite("output/moving_flow_color.png", moving_flow_color)
+
+        moving_img, _ = flow_forward_warping(stereo_img, moving_flow, stereo_depth, size)
+        moving_depth, _ = flow_forward_warping(stereo_depth, moving_flow, stereo_depth, size)
+        moving_depth[moving_depth == 0] = 100
+
+        moving_masks = {}
+        moving_masks["H"], _ = flow_forward_warping(stereo_masks["H"], moving_flow, stereo_depth, size)
+        moving_masks["M"], _ = flow_forward_warping(stereo_masks["M"], moving_flow, stereo_depth, size)
+        cv2.imwrite("output/moving_img.png", moving_img)
+        plt.imsave("output/moving_depth.png", 1 / moving_depth, cmap="magma")
+        cv2.imwrite("output/moving_H.png", moving_masks["H"] * 255)
+        cv2.imwrite("output/moving_M.png", moving_masks["M"] * 255)
 
