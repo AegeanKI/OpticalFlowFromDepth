@@ -86,6 +86,8 @@ def normalize_depth(depth):
 
 
 def color_flow(flow):
+    flow_color = flow_colors.flow_to_color(flow[0].numpy(), convert_to_bgr=True)
+    return None, flow_color
     flow_16bit = np.concatenate((flow * 64. + (2 ** 15), np.ones_like(flow)[:, :, :, 0:1]), -1)[0]
     flow_16bit = cv2.cvtColor(flow_16bit, cv2.COLOR_BGR2RGB)
     flow_color = flow_colors.flow_to_color(flow[0].numpy(), convert_to_bgr=True)
