@@ -11,6 +11,8 @@ import ctypes
 import matplotlib.pyplot as plt
 from bilateral_filter import sparse_bilateral_filtering
 import argparse
+import time
+import skimage
 
 class Plausible():
     @staticmethod
@@ -64,15 +66,19 @@ class Plausible():
 class Convert():
     @staticmethod
     def depth_to_disparity(depth, size):
+        print("converting depth to disparity")
         h, w = size
         s = utils.get_random(175, 50, random_sign=False)
         
         depth_max = np.max(depth)
         disparity = (1. / depth) * s * depth_max / w
+        # B, f = Plausible.B(), Plausible.f()
+        # disparity = B * f / depth
         return disparity
 
     @staticmethod
     def disparity_to_flow(disparity, size, random_sign=True):
+        print("converting disparity to flow")
         h, w = size
         flow = np.zeros((1, h, w, 2))
         flow[0, :, :, 0] = -disparity
@@ -83,14 +89,18 @@ class Convert():
 
     @staticmethod
     def disparity_to_depth(disparity):
-        B, f = Plausible.B(), Plausible.f()
-        depth = B * f / (disparity + 0.005)
+        print("converting disparity to depth")
+        # B, f = Plausible.B(), Plausible.f()
+        # depth = B * f / (disparity + 0.005)
+        s = utils.get_random(100, 25, random_sign=False)
+        depth = s / (disparity + 0.005)
         depth = (np.max(depth) - depth) / (np.max(depth) - np.min(depth))
         depth = utils.normalize_depth(depth)
-        return depth, B
+        return depth
 
     @staticmethod
     def depth_to_random_flow(depth, size, segment=None):
+        print("converting depth to random flow")
         h, w = size
         K, inv_K = Plausible.K(size)
         backproject_depth = geometry.BackprojectDepth(1, h, w)
@@ -99,7 +109,7 @@ class Convert():
         depth = torch.from_numpy(depth).unsqueeze(0).float()
         cam_points = backproject_depth(depth, inv_K)
 
-        T1, axisangle, translation = Plausible.random_motion(1. / 72., 1. / 72., 0.05, 0.05) 
+        T1, axisangle, translation = Plausible.random_motion(1. / 144., 1. / 144., 0.05, 0.05) 
         p1, z1 = project_3d(cam_points, K, T1)
         z1 = z1.reshape(1, h, w)
         
@@ -145,7 +155,6 @@ def flow_forward_warping(img, flow, depth, size):
     # warped_img = using_clib.forward_warping(img, p1, depth, size) 
     warped_img = forward_warping(img, p1, depth, size) 
 
-    # res = warped_img[0, :, :, 0] if one_channel else warped_img[0, :, :, 0:3]
     res = warped_img[0, :, :, 0:3]
     if one_channel:
         res = res[..., 0]
@@ -165,8 +174,8 @@ def forward_warping(img, p1, depth, size):
     # print(f"{img.shape = }")    (h, w, c)
     # print(f"{depth.shape = }")  (1, h, w)
     h, w = size
-    safe_y = np.maximum(np.minimum(p1[:, :, :, 1].long(), h - 1), 0)
-    safe_x = np.maximum(np.minimum(p1[:, :, :, 0].long(), w - 1), 0)
+    safe_y = np.maximum(np.minimum(p1[:, :, :, 1], h - 1), 0)
+    safe_x = np.maximum(np.minimum(p1[:, :, :, 0], w - 1), 0)
     img = img.reshape((1, h, w, 3))
     warped = np.zeros((h, w, 5))
     dlut = np.ones(size) * 1000
@@ -174,6 +183,24 @@ def forward_warping(img, p1, depth, size):
         for j in range(w):
             x = safe_x[0, i, j]
             y = safe_y[0, i, j]
+
+
+            if warped[int(y), int(x), 3] == 0 or depth[0, i, j] < dlut[int(y), int(x)]:
+                pass
+            elif ((x - int(x) > 0.5) and
+                  (warped[int(y), int(x) + 1, 3] == 0 or depth[0, i, j] < dlut[int(y), int(x) + 1] - 1.)):
+                x = x + 1
+            elif ((y - int(y) > 0.5) and
+                  (warped[int(y) + 1, int(x), 3] == 0 or depth[0, i, j] < dlut[int(y) + 1, int(x)] - 1.)):
+                y = y + 1
+            elif ((x - int(x) > 0.5) and (y - int(y) > 0.5) and
+                  (warped[int(y) + 1, int(x) + 1, 3] == 0 or depth[0, i, j] < dlut[int(y) + 1, int(x) + 1] - 1.)):
+                x = x + 1
+                y = y + 1
+
+            y = int(y)
+            x = int(x)
+
             if depth[0, i, j] < dlut[y, x]:
                 for c in range(3):
                     warped[y, x, c] = img[0, i, j, c]
@@ -185,6 +212,33 @@ def forward_warping(img, p1, depth, size):
                 warped[y, x, 4] = 1
             dlut[y, x] = depth[0, i, j]
 
+    onepixel_blank = True
+    while onepixel_blank:
+        onepixel_blank = False
+        for i in range(1, h - 1):
+            for j in range(1, w - 1):
+                if warped[i, j, 3] == 1:
+                    continue
+                if warped[i, j - 1, 3] == 1 and warped[i, j + 1, 3] == 1:
+                    warped[i, j, 0:3] = (warped[i, j - 1, 0:3] + warped[i, j + 1, 0:3]) / 2
+                    warped[i, j, 3] = 1
+                    warped[i, j, 4] = 1
+                    onepixel_blank = True
+                elif warped[i - 1, j, 3] == 1 and warped[i + 1, j, 3] == 1:
+                    warped[i, j, 0:3] = (warped[i - 1, j, 0:3] + warped[i + 1, j, 0:3]) / 2
+                    warped[i, j, 3] = 1
+                    warped[i, j, 4] = 1
+                    onepixel_blank = True
+                elif warped[i - 1, j - 1, 3] == 1 and warped[i + 1, j + 1, 3] == 1:
+                    warped[i, j, 0:3] = (warped[i - 1, j - 1, 0:3] + warped[i + 1, j + 1, 0:3]) / 2
+                    warped[i, j, 3] = 1
+                    warped[i, j, 4] = 1
+                    onepixel_blank = True
+                elif warped[i - 1, j + 1, 3] == 1 and warped[i + 1, j - 1, 3] == 1:
+                    warped[i, j, 0:3] = (warped[i - 1, j + 1, 0:3] + warped[i + 1, j - 1, 0:3]) / 2
+                    warped[i, j, 3] = 1
+                    warped[i, j, 4] = 1
+                    onepixel_blank = True
     warped = warped.reshape(1, h, w, 5)
     return warped
 
@@ -197,10 +251,12 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
 
+    start = time.time()
     if args.mono:
         output_dir = "output/monocular"
-        img, size = utils.get_img("../im0.jpg") # CHW
-        depth  = utils.get_depth("../d0.png", size, 16) # HW
+        img, size = utils.get_img("../img.jpg")
+        depth  = utils.get_depth("../depth.png", size, 16) # depth.png: 0 ~ 65535
+
         depth = sparse_bilateral_filtering(depth.copy(), img.copy(),
                                            filter_size=[5, 5], num_iter=2)
         cv2.imwrite(f"{output_dir}/original_img.png", img)
@@ -213,63 +269,66 @@ if __name__ == "__main__":
         _, stereo_flow_color = utils.color_flow(stereo_flow)
         cv2.imwrite(f"{output_dir}/stereo_flow_color.png", stereo_flow_color)
 
+        print("warping stereo image")
         stereo_img, stereo_masks = flow_forward_warping(img, stereo_flow, depth, size)
         stereo_depth, _ = flow_forward_warping(depth, stereo_flow, depth, size)
         stereo_depth[stereo_depth == 0] = 100
-        # stereo_depth = sparse_bilateral_filtering(stereo_depth.copy(), stereo_img.copy(),
-        #                                           filter_size=[5, 5], num_iter=2)
+        stereo_depth = sparse_bilateral_filtering(stereo_depth.copy(), stereo_img.copy(),
+                                                  filter_size=[5, 5], num_iter=2)
         cv2.imwrite(f"{output_dir}/stereo_img.png", stereo_img)
         plt.imsave(f"{output_dir}/stereo_depth.png", 1 / stereo_depth, cmap="magma")
         cv2.imwrite(f"{output_dir}/stereo_masks_H.png", stereo_masks["H"] * 255)
         cv2.imwrite(f"{output_dir}/stereo_masks_M.png", stereo_masks["M"] * 255)
         # cv2.imwrite(f"{output_dir}/stereo_masks_P.png", stereo_masks["P"] * 255)
+        # cv2.imwrite(f"{output_dir}/stereo_masks_H'.png", stereo_masks["H'"] * 255)
+        # cv2.imwrite(f"{output_dir}/stereo_masks_M'.png", stereo_masks["M'"] * 255)
 
-        # =====
+        print("warping backward stereo flow")
         stereo_flow_np = stereo_flow[0].detach().numpy()
         backward_stereo_flow, backward_stereo_masks = flow_forward_warping(stereo_flow_np, stereo_flow, depth, size)
         backward_stereo_flow = torch.from_numpy(backward_stereo_flow).unsqueeze(0) * -1
         _, backward_stereo_flow_color = utils.color_flow(backward_stereo_flow)
         cv2.imwrite(f"{output_dir}/backward_stereo_flow_color.png", backward_stereo_flow_color)
+
+        print("warping backward stereo image")
         backward_stereo_img, _ = flow_forward_warping(stereo_img, backward_stereo_flow, stereo_depth, size)
         cv2.imwrite(f"{output_dir}/backward_stereo_img.png", backward_stereo_img)
         cv2.imwrite(f"{output_dir}/backward_stereo_H.png", backward_stereo_masks["H"] * 255)
         cv2.imwrite(f"{output_dir}/backward_stereo_M.png", backward_stereo_masks["M"] * 255)
-        # cv2.imwrite(f"{output_dir}/backward_stereo_P.png", backward_stereo_masks["P"] * 255)
-        
-        # quit()
-        # =====
 
         moving_flow = Convert.depth_to_random_flow(stereo_depth, size)
         _, moving_flow_color = utils.color_flow(moving_flow)
         cv2.imwrite(f"{output_dir}/moving_flow_color.png", moving_flow_color)
 
+        print("warping moving image")
         moving_img, moving_masks = flow_forward_warping(stereo_img, moving_flow, stereo_depth, size)
         moving_depth, _ = flow_forward_warping(stereo_depth, moving_flow, stereo_depth, size)
         moving_depth[moving_depth == 0] = 100
-        # moving_depth = sparse_bilateral_filtering(moving_depth.copy(), moving_img.copy(),
-        #                                           filter_size=[5, 5], num_iter=2)
+        moving_depth = sparse_bilateral_filtering(moving_depth.copy(), moving_img.copy(),
+                                                  filter_size=[5, 5], num_iter=2)
+        moving_masks_H, _ = flow_forward_warping(stereo_masks["H"], moving_flow, stereo_depth, size)
+        moving_masks_M, _ = flow_forward_warping(stereo_masks["M"], moving_flow, stereo_depth, size)
+        moving_masks["H"] = moving_masks["H"] * moving_masks_H
+        moving_masks["M"] = moving_masks["M"] * moving_masks_M
         cv2.imwrite(f"{output_dir}/moving_img.png", moving_img)
         plt.imsave(f"{output_dir}/moving_depth.png", 1 / moving_depth, cmap="magma")
         cv2.imwrite(f"{output_dir}/moving_masks_H.png", moving_masks["H"] * 255)
         cv2.imwrite(f"{output_dir}/moving_masks_M.png", moving_masks["M"] * 255)
-        # cv2.imwrite(f"{output_dir}/moving_masks_P.png", moving_masks["P"] * 255)
 
-        # =====
+        print("warping backward moving flow")
         moving_flow_np = moving_flow[0].detach().numpy()
-        # backward_moving_flow, backward_moving_masks = flow_forward_warping(moving_flow_np, moving_flow, depth, size)
         backward_moving_flow, backward_moving_masks = flow_forward_warping(moving_flow_np, moving_flow, stereo_depth, size)
         backward_moving_flow = torch.from_numpy(backward_moving_flow).unsqueeze(0) * -1
-        
+
+        print("warping backward moving image")
         _, backward_moving_flow_color = utils.color_flow(backward_moving_flow)
         cv2.imwrite(f"{output_dir}/backward_moving_flow_color.png", backward_moving_flow_color)
         backward_moving_img, _ = flow_forward_warping(moving_img, backward_moving_flow, moving_depth, size)
         cv2.imwrite(f"{output_dir}/backward_moving_img.png", backward_moving_img)
         cv2.imwrite(f"{output_dir}/backward_moving_H.png", backward_moving_masks["H"] * 255)
         cv2.imwrite(f"{output_dir}/backward_moving_M.png", backward_moving_masks["M"] * 255)
-        # cv2.imwrite(f"{output_dir}/backward_moving_P.png", backward_moving_masks["P"] * 255)
-        # =====
 
-        # concat_flow = moving_flow + stereo_flow
+        print("warping concat image")
         moving_flow_np = moving_flow[0].detach().numpy()
         concat_flow, concat_masks = flow_forward_warping(moving_flow_np, backward_stereo_flow, stereo_depth, size)
         concat_flow = torch.from_numpy(concat_flow).unsqueeze(0)
@@ -279,23 +338,21 @@ if __name__ == "__main__":
         _, concat_flow_color = utils.color_flow(concat_flow)
         cv2.imwrite(f"{output_dir}/concat_flow_color.png", concat_flow_color)
         concat_img, concat_masks = flow_forward_warping(img, concat_flow, depth, size)
-        m = concat_masks["H"]
+        m = moving_masks["H"]
         m = np.stack((m, m, m), -1)
         cv2.imwrite(f"{output_dir}/concat_img.png", concat_img * m)
         cv2.imwrite(f"{output_dir}/concat_masks_H.png", concat_masks["H"] * 255)
         cv2.imwrite(f"{output_dir}/concat_masks_M.png", concat_masks["M"] * 255)
-        # cv2.imwrite(f"{output_dir}/concat_masks_P.png", concat_masks["P"] * 255)
-
     else:
         output_dir = "output/stereo"
         left, right, size = utils.get_stereo_img("../left.png", "../right.png")
-        disparity = utils.get_disparity("../disparity-1.png", size)
+        disparity = utils.get_disparity("../disparity.png", size)
 
         cv2.imwrite(f"{output_dir}/original_left.png", left)
         cv2.imwrite(f"{output_dir}/original_right.png", right)
         plt.imsave(f"{output_dir}/original_disparity.png", disparity, cmap="magma")
 
-        depth, baseline = Convert.disparity_to_depth(disparity)
+        depth = Convert.disparity_to_depth(disparity)
         depth = sparse_bilateral_filtering(depth.copy(), left.copy(),
                                            filter_size=[5, 5], num_iter=2)
         plt.imsave(f"{output_dir}/disparity_to_depth.png", 1 / depth, cmap="magma")
@@ -303,64 +360,64 @@ if __name__ == "__main__":
         stereo_flow = Convert.disparity_to_flow(disparity, size, False)
         _, stereo_flow_color = utils.color_flow(stereo_flow)
         cv2.imwrite(f"{output_dir}/stereo_flow_color.png", stereo_flow_color)
+
+        print("warping stereo image")
         stereo_img, stereo_masks = flow_forward_warping(left, stereo_flow, depth, size)
         stereo_depth, _ = flow_forward_warping(depth, stereo_flow, depth, size)
         stereo_depth[stereo_depth == 0] = 100
-
+        stereo_depth = sparse_bilateral_filtering(stereo_depth.copy(), stereo_img.copy(),
+                                                  filter_size=[5, 5], num_iter=2)
         cv2.imwrite(f"{output_dir}/stereo_img.png", stereo_img)
         plt.imsave(f"{output_dir}/stereo_depth.png", 1 / stereo_depth, cmap="magma")
-        cv2.imwrite(f"{output_dir}/stereo_H.png", stereo_masks["H"] * 255)
-        cv2.imwrite(f"{output_dir}/stereo_M.png", stereo_masks["M"] * 255)
-        cv2.imwrite(f"{output_dir}/stereo_P.png", stereo_masks["P"] * 255)
+        cv2.imwrite(f"{output_dir}/stereo_masks_H.png", stereo_masks["H"] * 255)
+        cv2.imwrite(f"{output_dir}/stereo_masks_M.png", stereo_masks["M"] * 255)
 
-        # =====
+        print("warping backward stereo flow")
         stereo_flow_np = stereo_flow[0].detach().numpy()
         backward_stereo_flow, backward_stereo_masks = flow_forward_warping(stereo_flow_np, stereo_flow, depth, size)
         backward_stereo_flow = torch.from_numpy(backward_stereo_flow).unsqueeze(0) * -1
         _, backward_stereo_flow_color = utils.color_flow(backward_stereo_flow)
         cv2.imwrite(f"{output_dir}/backward_stereo_flow_color.png", backward_stereo_flow_color)
+
+        print("warping backward stereo image")
         backward_stereo_img, _ = flow_forward_warping(stereo_img, backward_stereo_flow, stereo_depth, size)
         cv2.imwrite(f"{output_dir}/backward_stereo_img.png", backward_stereo_img)
-        cv2.imwrite(f"{output_dir}/backward_stereo_H.png", backward_stereo_masks["H"] * 255)
-        cv2.imwrite(f"{output_dir}/backward_stereo_M.png", backward_stereo_masks["M"] * 255)
-        # cv2.imwrite(f"{output_dir}/backward_stereo_P.png", backward_stereo_masks["P"] * 255)
-        
-        # quit()
-        # =====
+        cv2.imwrite(f"{output_dir}/backward_masks_stereo_H.png", backward_stereo_masks["H"] * 255)
+        cv2.imwrite(f"{output_dir}/backward_masks_stereo_M.png", backward_stereo_masks["M"] * 255)
 
         moving_flow = Convert.depth_to_random_flow(stereo_depth, size)
         _, moving_flow_color = utils.color_flow(moving_flow)
         cv2.imwrite(f"{output_dir}/moving_flow_color.png", moving_flow_color)
 
-        moving_img, _ = flow_forward_warping(stereo_img, moving_flow, stereo_depth, size)
+        print("warping moving image")
+        moving_img, moving_masks = flow_forward_warping(stereo_img, moving_flow, stereo_depth, size)
         moving_depth, _ = flow_forward_warping(stereo_depth, moving_flow, stereo_depth, size)
         moving_depth[moving_depth == 0] = 100
-
-        moving_masks = {}
-        moving_masks["H"], _ = flow_forward_warping(stereo_masks["H"], moving_flow, stereo_depth, size)
-        moving_masks["M"], _ = flow_forward_warping(stereo_masks["M"], moving_flow, stereo_depth, size)
-        moving_masks["P"], _ = flow_forward_warping(stereo_masks["P"], moving_flow, stereo_depth, size)
+        moving_depth = sparse_bilateral_filtering(moving_depth.copy(), moving_img.copy(),
+                                                  filter_size=[5, 5], num_iter=2)
+        moving_masks_H, _ = flow_forward_warping(stereo_masks["H"], moving_flow, stereo_depth, size)
+        moving_masks_M, _ = flow_forward_warping(stereo_masks["M"], moving_flow, stereo_depth, size)
+        moving_masks["H"] = moving_masks["H"] * moving_masks_H
+        moving_masks["M"] = moving_masks["M"] * moving_masks_M
         cv2.imwrite(f"{output_dir}/moving_img.png", moving_img)
         plt.imsave(f"{output_dir}/moving_depth.png", 1 / moving_depth, cmap="magma")
-        cv2.imwrite(f"{output_dir}/moving_H.png", moving_masks["H"] * 255)
-        cv2.imwrite(f"{output_dir}/moving_M.png", moving_masks["M"] * 255)
+        cv2.imwrite(f"{output_dir}/moving_masks_H.png", moving_masks["H"] * 255)
+        cv2.imwrite(f"{output_dir}/moving_masks_M.png", moving_masks["M"] * 255)
 
-        # =====
+        print("warping backward moving flow")
         moving_flow_np = moving_flow[0].detach().numpy()
-        # backward_moving_flow, backward_moving_masks = flow_forward_warping(moving_flow_np, moving_flow, depth, size)
         backward_moving_flow, backward_moving_masks = flow_forward_warping(moving_flow_np, moving_flow, stereo_depth, size)
         backward_moving_flow = torch.from_numpy(backward_moving_flow).unsqueeze(0) * -1
-        
+
+        print("warping backward moving image")
         _, backward_moving_flow_color = utils.color_flow(backward_moving_flow)
         cv2.imwrite(f"{output_dir}/backward_moving_flow_color.png", backward_moving_flow_color)
         backward_moving_img, _ = flow_forward_warping(moving_img, backward_moving_flow, moving_depth, size)
         cv2.imwrite(f"{output_dir}/backward_moving_img.png", backward_moving_img)
-        cv2.imwrite(f"{output_dir}/backward_moving_H.png", backward_moving_masks["H"] * 255)
-        cv2.imwrite(f"{output_dir}/backward_moving_M.png", backward_moving_masks["M"] * 255)
-        # cv2.imwrite(f"{output_dir}/backward_moving_P.png", backward_moving_masks["P"] * 255)
-        # =====
+        cv2.imwrite(f"{output_dir}/backward_moving_masks_H.png", backward_moving_masks["H"] * 255)
+        cv2.imwrite(f"{output_dir}/backward_moving_masks_M.png", backward_moving_masks["M"] * 255)
 
-        # concat_flow = moving_flow + stereo_flow
+        print("warping concat image")
         moving_flow_np = moving_flow[0].detach().numpy()
         concat_flow, concat_masks = flow_forward_warping(moving_flow_np, backward_stereo_flow, stereo_depth, size)
         concat_flow = torch.from_numpy(concat_flow).unsqueeze(0)
@@ -370,10 +427,11 @@ if __name__ == "__main__":
         _, concat_flow_color = utils.color_flow(concat_flow)
         cv2.imwrite(f"{output_dir}/concat_flow_color.png", concat_flow_color)
         concat_img, concat_masks = flow_forward_warping(left, concat_flow, depth, size)
-        m = concat_masks["H"]
+        m = moving_masks["H"]
         m = np.stack((m, m, m), -1)
         cv2.imwrite(f"{output_dir}/concat_img.png", concat_img * m)
         cv2.imwrite(f"{output_dir}/concat_masks_H.png", concat_masks["H"] * 255)
         cv2.imwrite(f"{output_dir}/concat_masks_M.png", concat_masks["M"] * 255)
-        # cv2.imwrite(f"{output_dir}/concat_masks_P.png", concat_masks["P"] * 255)
 
+    end = time.time()
+    print(f"cal time = {end - start}")

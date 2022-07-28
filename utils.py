@@ -6,6 +6,7 @@ import numpy as np
 import torch
 import random
 import math
+import skimage
 
 def get_img(path):
     img = cv2.imread(path, -1)
@@ -28,7 +29,8 @@ def get_stereo_img(path_left, path_right):
     return left, right, (h, w)
 
 def get_depth(path, target_size, bits=8):
-    depth = cv2.imread(path, -1) / (2 ** bits - 1)
+    # depth = cv2.imread(path, -1) / (2 ** bits - 1)
+    depth = cv2.imread(path, -1) / (2 ** bits)
     
     h, w = target_size
     if depth.shape[0] != h or depth.shape[1] != w:
@@ -38,8 +40,11 @@ def get_depth(path, target_size, bits=8):
     return depth
 
 def get_disparity(path, target_size, bits=8):
-    disparity = cv2.imread(path, -1) / (2 ** bits - 1)
+    # disparity = cv2.imread(path, -1) / (2 ** bits - 1)
+    disparity = cv2.imread(path, -1) / (2 ** bits)
     
+    disparity = skimage.measure.block_reduce(disparity, (5, 5), np.max)
+
     h, w = target_size
     if disparity.shape[0] != h or disparity.shape[1] != w:
         disparity = cv2.resize(disparity, (w, h))
