@@ -7,6 +7,7 @@ import torch
 import random
 import math
 import skimage
+from bilateral_filter import sparse_bilateral_filtering
 
 def get_img(path):
     img = cv2.imread(path, -1)
@@ -102,5 +103,12 @@ def color_flow(flow):
 def inpaint_img(img, masks):
     img = cv2.inpaint(img, 1 - masks["H"], 3, cv2.INPAINT_TELEA)
     return img
+
+
+def fix_depth(img_depth, img):
+    img_depth[img_depth == 0] = 100
+    img_depth = sparse_bilateral_filtering(img_depth.copy(), img.copy(),
+                                           filter_size=[5, 5], num_iter=2)
+    return img_depth
 
 
