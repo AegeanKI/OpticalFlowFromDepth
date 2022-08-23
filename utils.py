@@ -11,7 +11,7 @@ from bilateral_filter import sparse_bilateral_filtering
 
 def get_img(path):
     img = cv2.imread(path, -1)
-    if len(img) < 3:
+    if img.ndim == 2:
         h, w = img.shape
         img = np.stack((img, img, img), -1)
     else:
@@ -21,7 +21,7 @@ def get_img(path):
 def get_stereo_img(path_left, path_right):
     left = cv2.imread(path_left, -1)
     right = cv2.imread(path_right, -1)
-    if len(left) < 3:
+    if left.ndim == 2:
         h, w = left.shape
         left = np.stack((left, left, left), -1)
         right = np.stack((right, right, right), -1)

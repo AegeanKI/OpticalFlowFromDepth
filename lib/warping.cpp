@@ -275,310 +275,339 @@ extern "C" {
         return;
     }
 
-    void forward_warping_int(const int* img, const double* flow, const double* depth, int* output,
-                             int kernel_size, int dim_h, int dim_w, int dim_c) {
-        auto dim3_idx = [&](int y, int x, int z, int c) {
-            return y * c * dim_w + x * c + z;
+    void forward_warping_img(const double *img, const double *safe_y, const double *safe_x, const double *depth,
+                             int dim_h, int dim_w, double same_range, double *output) {
+        int dim_c = 3;
+        auto dim3_idx = [&](int y, int x, int z) {
+            return y * dim_c * dim_w + x * dim_c + z;
         };
         auto dim2_idx = [&](int y, int x) {
             return y * dim_w + x;
-        };
-        auto safe_x = [&](double x) {
-            return std::max(std::min(int(floor(x)), dim_w - 1), 0);
-        };
-        auto safe_x_next = [&](double x) {
-            return std::max(std::min(int(floor(x) + 1), dim_w - 1), 0);
-        };
-        auto safe_y = [&](double y) {
-            return std::max(std::min(int(floor(y)), dim_h - 1), 0);
-        };
-        auto safe_y_next = [&](double y) {
-            return std::max(std::min(int(floor(y) + 1), dim_h - 1), 0);
         };
 
         double *dlut = (double *)malloc(dim_h * dim_w * sizeof(double));
-        std::fill(dlut, dlut + dim_h * dim_w, 1000.0);
-        int *dlut_count = (int *)malloc(dim_h * dim_w * sizeof(int));
-        std::fill_n(dlut_count, dim_h * dim_w, 1);
+        std::fill(dlut, dlut + dim_h * dim_w, 100.0);
+        int *dlut_count = (int *)calloc(dim_h * dim_w, sizeof(int));
 
-
-        for (int old_y = 0; old_y < dim_h; old_y++) {
-            for (int old_x = 0; old_x < dim_w; old_x++) {
-                double cur_depth = depth[dim2_idx(old_y, old_x)];
-                double dx = flow[dim3_idx(old_y, old_x, 0, 2)];
-                double dy = flow[dim3_idx(old_y, old_x, 1, 2)];
-
-                double x = old_x + dx;
-                double y = old_y + dy;
-
-                int x_f = (int)floor(x);
-                int y_f = (int)floor(y);
-                int x_c = x_f + 1;
-                int y_c = y_f + 1;
-                if (x_f >= 0 && x_c < dim_w && y_f >= 0 && y_c < dim_h) {
-                    double nw_k = (x_c - x) * (y_c - y);
-                    double ne_k = (x - x_f) * (y_c - y);
-                    double sw_k = (x_c - x) * (y - y_f);
-                    double se_k = (x - x_f) * (y - y_f);
-                    for (int c = 0; c < dim_c; ++c) {
-                        int img_idx = dim3_idx(old_y, old_x, c, dim_c);
-
-                        int nw_img_idx = dim3_idx(y_f, x_f, c, dim_c);
-                        int ne_img_idx = dim3_idx(y_f, x_c, c, dim_c);
-                        int sw_img_idx = dim3_idx(y_c, x_f, c, dim_c);
-                        int se_img_idx = dim3_idx(y_c, x_c, c, dim_c);
-
-                        int nw_depth_idx = dim2_idx(y_f, x_f);
-                        int ne_depth_idx = dim2_idx(y_f, x_c);
-                        int sw_depth_idx = dim2_idx(y_c, x_f);
-                        int se_depth_idx = dim2_idx(y_c, x_c);
-
-                        double nw_depth = dlut[nw_depth_idx] / (double) dlut_count[nw_depth_idx];
-                        double ne_depth = dlut[ne_depth_idx] / (double) dlut_count[ne_depth_idx];
-                        double sw_depth = dlut[sw_depth_idx] / (double) dlut_count[sw_depth_idx];
-                        double se_depth = dlut[se_depth_idx] / (double) dlut_count[se_depth_idx];
-
-                        if (nw_depth == 1000.0 || nw_depth > cur_depth + 0.1) {
-                            output[nw_img_idx] = nw_k * img[img_idx];
-                            dlut[nw_depth_idx] = cur_depth;
-                            dlut_count[nw_depth_idx] = 1;
-                        } else if (std::abs(nw_depth - cur_depth) <= 0.1) {
-                            output[nw_img_idx] += nw_k * img[img_idx];
-                            dlut[nw_depth_idx] += cur_depth;
-                            dlut_count[nw_depth_idx]++;
-                        }
-                        if (ne_depth == 1000.0 || ne_depth > cur_depth + 0.1) {
-                            output[ne_img_idx] = ne_k * img[img_idx];
-                            dlut[ne_depth_idx] = cur_depth;
-                            dlut_count[ne_depth_idx] = 1;
-                        } else if (std::abs(ne_depth - cur_depth) <= 0.1) {
-                            output[ne_img_idx] += ne_k * img[img_idx];
-                            dlut[ne_depth_idx] += cur_depth;
-                            dlut_count[ne_depth_idx]++;
-                        }
-                        if (sw_depth == 1000.0 || sw_depth > cur_depth + 0.1) {
-                            output[sw_img_idx] = sw_k * img[img_idx];
-                            dlut[sw_depth_idx] = cur_depth;
-                            dlut_count[sw_depth_idx] = 1;
-                        } else if (std::abs(sw_depth - cur_depth) <= 0.1) {
-                            output[sw_img_idx] += sw_k * img[img_idx];
-                            dlut[sw_depth_idx] += cur_depth;
-                            dlut_count[sw_depth_idx]++;
-                        }
-                        if (se_depth == 1000.0 || se_depth > cur_depth + 0.1) {
-                            output[se_img_idx] = se_k * img[img_idx];
-                            dlut[se_depth_idx] = cur_depth;
-                            dlut_count[se_depth_idx] = 1;
-                        } else if (std::abs(se_depth - cur_depth) <= 0.1) {
-                            output[se_img_idx] += se_k * img[img_idx];
-                            dlut[se_depth_idx] += cur_depth;
-                            dlut_count[se_depth_idx]++;
-                        }
-                    }
-                }
-
-            }
-        }
-    }
-
-    void forward_warping_double(const double* img, const double* flow, const double* depth, double* output,
-                                int kernel_size, int dim_h, int dim_w, int dim_c) {
-        auto dim3_idx = [&](int y, int x, int z, int c) {
-            return y * c * dim_w + x * c + z;
-        };
-        auto dim2_idx = [&](int y, int x) {
-            return y * dim_w + x;
-        };
-        auto safe_x = [&](double x) {
-            return std::max(std::min(int(floor(x)), dim_w - 1), 0);
-        };
-        auto safe_x_next = [&](double x) {
-            return std::max(std::min(int(floor(x) + 1), dim_w - 1), 0);
-        };
-        auto safe_y = [&](double y) {
-            return std::max(std::min(int(floor(y)), dim_h - 1), 0);
-        };;
-        auto safe_y_next = [&](double y) {
-            return std::max(std::min(int(floor(y) + 1), dim_h - 1), 0);
-        };
-
-        double *dlut = (double *)malloc(dim_h * dim_w * sizeof(double));
-        std::fill(dlut, dlut + dim_h * dim_w, 1000.0);
-        int *dlut_count = (int *)malloc(dim_h * dim_w * sizeof(int));
-        std::fill_n(dlut_count, dim_h * dim_w, 1);
-
-        for (int old_y = 0; old_y < dim_h; old_y++) {
-            for (int old_x = 0; old_x < dim_w; old_x++) {
-                double cur_depth = depth[dim2_idx(old_y, old_x)];
-                double dx = flow[dim3_idx(old_y, old_x, 0, 2)];
-                double dy = flow[dim3_idx(old_y, old_x, 1, 2)];
-
-                double x = old_x + dx;
-                double y = old_y + dy;
+        for (int i = 0; i < dim_h; i++) {
+            for (int j = 0; j < dim_w; j++) {
+                double cur_depth = depth[dim2_idx(i, j)];
+                double x = safe_x[dim2_idx(i, j)];
+                double y = safe_y[dim2_idx(i, j)];
 
                 int x_f = (int)floor(x);
                 int y_f = (int)floor(y);
                 int x_c = x_f + 1;
                 int y_c = y_f + 1;
 
-                if (x_f >= 0 && x_c < dim_w && y_f >= 0 && y_c < dim_h) {
-                    double nw_k = (x_c - x) * (y_c - y);
-                    double ne_k = (x - x_f) * (y_c - y);
-                    double sw_k = (x_c - x) * (y - y_f);
-                    double se_k = (x - x_f) * (y - y_f);
-                    for (int c = 0; c < dim_c; ++c) {
-                        int img_idx = dim3_idx(old_y, old_x, c, dim_c);
-
-                        int nw_img_idx = dim3_idx(y_f, x_f, c, dim_c);
-                        int ne_img_idx = dim3_idx(y_f, x_c, c, dim_c);
-                        int sw_img_idx = dim3_idx(y_c, x_f, c, dim_c);
-                        int se_img_idx = dim3_idx(y_c, x_c, c, dim_c);
-
-                        int nw_depth_idx = dim2_idx(y_f, x_f);
-                        int ne_depth_idx = dim2_idx(y_f, x_c);
-                        int sw_depth_idx = dim2_idx(y_c, x_f);
-                        int se_depth_idx = dim2_idx(y_c, x_c);
-
-                        double nw_depth = dlut[nw_depth_idx] / (double) dlut_count[nw_depth_idx];
-                        double ne_depth = dlut[ne_depth_idx] / (double) dlut_count[ne_depth_idx];
-                        double sw_depth = dlut[sw_depth_idx] / (double) dlut_count[sw_depth_idx];
-                        double se_depth = dlut[se_depth_idx] / (double) dlut_count[se_depth_idx];
-
-                        if (nw_depth == 1000.0 || nw_depth > cur_depth + 0.1) {
-                            output[nw_img_idx] = nw_k * img[img_idx];
-                            dlut[nw_depth_idx] = cur_depth;
-                            dlut_count[nw_depth_idx] = 1;
-                        } else if (std::abs(nw_depth - cur_depth) <= 0.1) {
-                            output[nw_img_idx] += nw_k * img[img_idx];
-                            dlut[nw_depth_idx] += cur_depth;
-                            dlut_count[nw_depth_idx]++;
-                        }
-                        if (ne_depth == 1000.0 || ne_depth > cur_depth + 0.1) {
-                            output[ne_img_idx] = ne_k * img[img_idx];
-                            dlut[ne_depth_idx] = cur_depth;
-                            dlut_count[ne_depth_idx] = 1;
-                        } else if (std::abs(ne_depth - cur_depth) <= 0.1) {
-                            output[ne_img_idx] += ne_k * img[img_idx];
-                            dlut[ne_depth_idx] += cur_depth;
-                            dlut_count[ne_depth_idx]++;
-                        }
-                        if (sw_depth == 1000.0 || sw_depth > cur_depth + 0.1) {
-                            output[sw_img_idx] = sw_k * img[img_idx];
-                            dlut[sw_depth_idx] = cur_depth;
-                            dlut_count[sw_depth_idx] = 1;
-                        } else if (std::abs(sw_depth - cur_depth) <= 0.1) {
-                            output[sw_img_idx] += sw_k * img[img_idx];
-                            dlut[sw_depth_idx] += cur_depth;
-                            dlut_count[sw_depth_idx]++;
-                        }
-                        if (se_depth == 1000.0 || se_depth > cur_depth + 0.1) {
-                            output[se_img_idx] = se_k * img[img_idx];
-                            dlut[se_depth_idx] = cur_depth;
-                            dlut_count[se_depth_idx] = 1;
-                        } else if (std::abs(se_depth - cur_depth) <= 0.1) {
-                            output[se_img_idx] += se_k * img[img_idx];
-                            dlut[se_depth_idx] += cur_depth;
-                            dlut_count[se_depth_idx]++;
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    void forward_warping_depth(const double* flow, const double* depth, double* output,
-                               int kernel_size, int dim_h, int dim_w) {
-        auto dim3_idx = [&](int y, int x, int z, int c) {
-            return y * c * dim_w + x * c + z;
-        };
-        auto dim2_idx = [&](int y, int x) {
-            return y * dim_w + x;
-        };
-        auto safe_x = [&](double x) {
-            return std::max(std::min(int(floor(x)), dim_w - 1), 0);
-        };;
-        auto safe_x_next = [&](double x) {
-            return std::max(std::min(int(floor(x) + 1), dim_w - 1), 0);
-        };
-        auto safe_y = [&](double y) {
-            return std::max(std::min(int(floor(y)), dim_h - 1), 0);
-        };;
-        auto safe_y_next = [&](double y) {
-            return std::max(std::min(int(floor(y) + 1), dim_h - 1), 0);
-        };
-
-        // double *dlut = (double *)malloc(dim_h * dim_w * sizeof(double));
-        // std::fill(dlut, dlut + dim_h * dim_w, 1000.0);
-        std::fill(output, output + dim_h * dim_w, 100.0);
-        int *dlut_count = (int *)malloc(dim_h * dim_w * sizeof(int));
-        std::fill_n(dlut_count, dim_h * dim_w, 1);
-
-        for (int old_y = 0; old_y < dim_h; old_y++) {
-            for (int old_x = 0; old_x < dim_w; old_x++) {
-                double cur_depth = depth[dim2_idx(old_y, old_x)];
-                double dx = flow[dim3_idx(old_y, old_x, 0, 2)];
-                double dy = flow[dim3_idx(old_y, old_x, 1, 2)];
-
-                double x = old_x + dx;
-                double y = old_y + dy;
-
-                int x_f = (int)floor(x);
-                int y_f = (int)floor(y);
-                int x_c = x_f + 1;
-                int y_c = y_f + 1;
-
-                if (x_f >= 0 && x_c < dim_w && y_f >= 0 && y_c < dim_h) {
-                    double nw_k = (x_c - x) * (y_c - y);
-                    double ne_k = (x - x_f) * (y_c - y);
-                    double sw_k = (x_c - x) * (y - y_f);
-                    double se_k = (x - x_f) * (y - y_f);
-
+                if(x_f >= 0 && x_c < dim_w && y_f >= 0 && y_c < dim_h){
                     int nw_depth_idx = dim2_idx(y_f, x_f);
                     int ne_depth_idx = dim2_idx(y_f, x_c);
                     int sw_depth_idx = dim2_idx(y_c, x_f);
                     int se_depth_idx = dim2_idx(y_c, x_c);
 
-                    double nw_depth = output[nw_depth_idx] / (double) dlut_count[nw_depth_idx];
-                    double ne_depth = output[ne_depth_idx] / (double) dlut_count[ne_depth_idx];
-                    double sw_depth = output[sw_depth_idx] / (double) dlut_count[sw_depth_idx];
-                    double se_depth = output[se_depth_idx] / (double) dlut_count[se_depth_idx];
+                    double nw_depth = dlut[nw_depth_idx] / (double) dlut_count[nw_depth_idx];
+                    double ne_depth = dlut[ne_depth_idx] / (double) dlut_count[ne_depth_idx];
+                    double sw_depth = dlut[sw_depth_idx] / (double) dlut_count[sw_depth_idx];
+                    double se_depth = dlut[se_depth_idx] / (double) dlut_count[se_depth_idx];
 
-                    if (nw_depth == 100.0 || nw_depth > cur_depth + 0.1) {
-                        output[nw_depth_idx] = cur_depth;
+                    if (nw_depth == 100.0 || nw_depth > cur_depth + same_range) {
+                        for (int c = 0; c < dim_c; c++) {
+                            int img_idx = dim3_idx(i, j, c);
+                            int nw_img_idx = dim3_idx(y_f, x_f, c);
+                            output[nw_img_idx] = img[img_idx];
+                        }
+                        dlut[nw_depth_idx] = cur_depth;
                         dlut_count[nw_depth_idx] = 1;
-                    } else if (std::abs(nw_depth - cur_depth) <= 0.1) {
-                        output[nw_depth_idx] += cur_depth;
+                    } else if (std::abs(nw_depth - cur_depth) <= same_range) {
+                        for (int c = 0; c < dim_c; c++) {
+                            int img_idx = dim3_idx(i, j, c);
+                            int nw_img_idx = dim3_idx(y_f, x_f, c);
+                            output[nw_img_idx] += img[img_idx];
+                        }
+                        dlut[nw_depth_idx] += cur_depth;
                         dlut_count[nw_depth_idx]++;
                     }
-                    if (ne_depth == 100.0 || ne_depth > cur_depth + 0.1) {
-                        output[ne_depth_idx] = cur_depth;
+                    if (ne_depth == 100.0 || ne_depth > cur_depth + same_range) {
+                        for (int c = 0; c < dim_c; c++) {
+                            int img_idx = dim3_idx(i, j, c);
+                            int ne_img_idx = dim3_idx(y_f, x_c, c);
+                            output[ne_img_idx] = img[img_idx];
+                        }
+                        dlut[ne_depth_idx] = cur_depth;
                         dlut_count[ne_depth_idx] = 1;
-                    } else if (std::abs(ne_depth - cur_depth) <= 0.1) {
-                        output[ne_depth_idx] += cur_depth;
+                    } else if (std::abs(ne_depth - cur_depth) <= same_range) {
+                        for (int c = 0; c < dim_c; c++) {
+                            int img_idx = dim3_idx(i, j, c);
+                            int ne_img_idx = dim3_idx(y_f, x_c, c);
+                            output[ne_img_idx] += img[img_idx];
+                        }
+                        dlut[ne_depth_idx] += cur_depth;
                         dlut_count[ne_depth_idx]++;
                     }
-                    if (sw_depth == 100.0 || sw_depth > cur_depth + 0.1) {
-                        output[sw_depth_idx] = cur_depth;
+                    if (sw_depth == 100.0 || sw_depth > cur_depth + same_range) {
+                        for (int c = 0; c < dim_c; c++) {
+                            int img_idx = dim3_idx(i, j, c);
+                            int sw_img_idx = dim3_idx(y_c, x_f, c);
+                            output[sw_img_idx] = img[img_idx];
+                        }
+                        dlut[sw_depth_idx] = cur_depth;
                         dlut_count[sw_depth_idx] = 1;
-                    } else if (std::abs(sw_depth - cur_depth) <= 0.1) {
-                        output[sw_depth_idx] += cur_depth;
+                    } else if (std::abs(sw_depth - cur_depth) <= same_range) {
+                        for (int c = 0; c < dim_c; c++) {
+                            int img_idx = dim3_idx(i, j, c);
+                            int sw_img_idx = dim3_idx(y_c, x_f, c);
+                            output[sw_img_idx] += img[img_idx];
+                        }
+                        dlut[sw_depth_idx] += cur_depth;
                         dlut_count[sw_depth_idx]++;
                     }
-                    if (se_depth == 100.0 || se_depth > cur_depth + 0.1) {
-                        output[se_depth_idx] = cur_depth;
+                    if (se_depth == 100.0 || se_depth > cur_depth + same_range) {
+                        for (int c = 0; c < dim_c; c++) {
+                            int img_idx = dim3_idx(i, j, c);
+                            int se_img_idx = dim3_idx(y_c, x_c, c);
+                            output[se_img_idx] = img[img_idx];
+                        }
+                        dlut[se_depth_idx] = cur_depth;
                         dlut_count[se_depth_idx] = 1;
-                    } else if (std::abs(se_depth - cur_depth) <= 0.1) {
-                        output[se_depth_idx] += cur_depth;
+                    } else if (std::abs(se_depth - cur_depth) <= same_range) {
+                        for (int c = 0; c < dim_c; c++) {
+                            int img_idx = dim3_idx(i, j, c);
+                            int se_img_idx = dim3_idx(y_c, x_c, c);
+                            output[se_img_idx] += img[img_idx];
+                        }
+                        dlut[se_depth_idx] += cur_depth;
                         dlut_count[se_depth_idx]++;
                     }
                 }
             }
         }
-        for (int old_y = 0; old_y < dim_h; old_y++) {
-            for (int old_x = 0; old_x < dim_w; old_x++) {
-                int idx = dim2_idx(old_y, old_x);
-                output[idx] = output[idx] / (double) dlut_count[idx];
+        for (int i = 0; i < dim_h; i++) {
+            for (int j = 0; j < dim_w; j++) {
+                int depth_idx = dim2_idx(i, j);
+                if (!dlut_count[depth_idx]) continue;
+
+                for (int c = 0; c < dim_c; c++) {
+                    int img_idx = dim3_idx(i, j, c);
+                    output[img_idx] = output[img_idx] / (double) dlut_count[depth_idx];
+                }
             }
         }
+
+        free(dlut);
+        free(dlut_count);
+        return;
     }
+
+    void forward_warping_depth(const double *safe_y, const double *safe_x, const double *depth,
+                               int dim_h, int dim_w, double same_range, double *output) {
+        auto dim2_idx = [&](int y, int x) {
+            return y * dim_w + x;
+        };
+
+        // double *dlut = (double *)malloc(dim_h * dim_w * sizeof(double));
+        // std::fill(dlut, dlut + dim_h * dim_w, 1000.0);
+        double *dlut = (double *)malloc(dim_h * dim_w * sizeof(double));
+        std::fill(dlut, dlut + dim_h * dim_w, 100.0);
+        int *dlut_count = (int *)calloc(dim_h * dim_w, sizeof(int));
+
+        for (int i = 0; i < dim_h; i++) {
+            for (int j = 0; j < dim_w; j++) {
+                double cur_depth = depth[dim2_idx(i, j)];
+                double x = safe_x[dim2_idx(i, j)];
+                double y = safe_y[dim2_idx(i, j)];
+
+                int x_f = (int)floor(x);
+                int y_f = (int)floor(y);
+                int x_c = x_f + 1;
+                int y_c = y_f + 1;
+
+                if(x_f >= 0 && x_c < dim_w && y_f >= 0 && y_c < dim_h){
+                    int nw_depth_idx = dim2_idx(y_f, x_f);
+                    int ne_depth_idx = dim2_idx(y_f, x_c);
+                    int sw_depth_idx = dim2_idx(y_c, x_f);
+                    int se_depth_idx = dim2_idx(y_c, x_c);
+
+                    double nw_depth = dlut[nw_depth_idx] / (double) dlut_count[nw_depth_idx];
+                    double ne_depth = dlut[ne_depth_idx] / (double) dlut_count[ne_depth_idx];
+                    double sw_depth = dlut[sw_depth_idx] / (double) dlut_count[sw_depth_idx];
+                    double se_depth = dlut[se_depth_idx] / (double) dlut_count[se_depth_idx];
+
+                    if (nw_depth == 100.0 || nw_depth > cur_depth + same_range) {
+                        output[nw_depth_idx] = cur_depth;
+                        dlut[nw_depth_idx] = cur_depth;
+                        dlut_count[nw_depth_idx] = 1;
+                    } else if (std::abs(nw_depth - cur_depth) <= same_range) {
+                        output[nw_depth_idx] += cur_depth;
+                        dlut[nw_depth_idx] += cur_depth;
+                        dlut_count[nw_depth_idx]++;
+                    }
+                    if (ne_depth == 100.0 || ne_depth > cur_depth + same_range) {
+                        output[ne_depth_idx] = cur_depth;
+                        dlut[ne_depth_idx] = cur_depth;
+                        dlut_count[ne_depth_idx] = 1;
+                    } else if (std::abs(ne_depth - cur_depth) <= same_range) {
+                        output[ne_depth_idx] += cur_depth;
+                        dlut[ne_depth_idx] += cur_depth;
+                        dlut_count[ne_depth_idx]++;
+                    }
+                    if (sw_depth == 100.0 || sw_depth > cur_depth + same_range) {
+                        output[sw_depth_idx] = cur_depth;
+                        dlut[sw_depth_idx] = cur_depth;
+                        dlut_count[sw_depth_idx] = 1;
+                    } else if (std::abs(sw_depth - cur_depth) <= same_range) {
+                        output[sw_depth_idx] += cur_depth;
+                        dlut[sw_depth_idx] += cur_depth;
+                        dlut_count[sw_depth_idx]++;
+                    }
+                    if (se_depth == 100.0 || se_depth > cur_depth + same_range) {
+                        output[se_depth_idx] = cur_depth;
+                        dlut[se_depth_idx] = cur_depth;
+                        dlut_count[se_depth_idx] = 1;
+                    } else if (std::abs(se_depth - cur_depth) <= same_range) {
+                        output[se_depth_idx] += cur_depth;
+                        dlut[se_depth_idx] += cur_depth;
+                        dlut_count[se_depth_idx]++;
+                    }
+                }
+            }
+        }
+        for (int i = 0; i < dim_h; i++) {
+            for (int j = 0; j < dim_w; j++) {
+                int depth_idx = dim2_idx(i, j);
+                if (!dlut_count[depth_idx]) continue;
+
+                output[depth_idx] = output[depth_idx] / (double) dlut_count[depth_idx];
+            }
+        }
+
+        free(dlut);
+        free(dlut_count);
+        return;
+    }
+
+    void forward_warping_flow(const double *flow, const double *safe_y, const double *safe_x, const double *depth,
+                              int dim_h, int dim_w, double same_range, double *output) {
+        int dim_c = 2;
+        auto dim3_idx = [&](int y, int x, int z) {
+            return y * dim_c * dim_w + x * dim_c + z;
+        };
+        auto dim2_idx = [&](int y, int x) {
+            return y * dim_w + x;
+        };
+
+        double *dlut = (double *)malloc(dim_h * dim_w * sizeof(double));
+        std::fill(dlut, dlut + dim_h * dim_w, 100.0);
+        int *dlut_count = (int *)calloc(dim_h * dim_w, sizeof(int));
+
+        for (int i = 0; i < dim_h; i++) {
+            for (int j = 0; j < dim_w; j++) {
+                double cur_depth = depth[dim2_idx(i, j)];
+                double x = safe_x[dim2_idx(i, j)];
+                double y = safe_y[dim2_idx(i, j)];
+
+                int x_f = (int)floor(x);
+                int y_f = (int)floor(y);
+                int x_c = x_f + 1;
+                int y_c = y_f + 1;
+
+                if(x_f >= 0 && x_c < dim_w && y_f >= 0 && y_c < dim_h){
+                    int nw_depth_idx = dim2_idx(y_f, x_f);
+                    int ne_depth_idx = dim2_idx(y_f, x_c);
+                    int sw_depth_idx = dim2_idx(y_c, x_f);
+                    int se_depth_idx = dim2_idx(y_c, x_c);
+
+                    double nw_depth = dlut[nw_depth_idx] / (double) dlut_count[nw_depth_idx];
+                    double ne_depth = dlut[ne_depth_idx] / (double) dlut_count[ne_depth_idx];
+                    double sw_depth = dlut[sw_depth_idx] / (double) dlut_count[sw_depth_idx];
+                    double se_depth = dlut[se_depth_idx] / (double) dlut_count[se_depth_idx];
+
+                    if (nw_depth == 100.0 || nw_depth > cur_depth + same_range) {
+                        for (int c = 0; c < dim_c; c++) {
+                            int flow_idx = dim3_idx(i, j, c);
+                            int nw_flow_idx = dim3_idx(y_f, x_f, c);
+                            output[nw_flow_idx] = flow[flow_idx];
+                        }
+                        dlut[nw_depth_idx] = cur_depth;
+                        dlut_count[nw_depth_idx] = 1;
+                    } else if (std::abs(nw_depth - cur_depth) <= same_range) {
+                        for (int c = 0; c < dim_c; c++) {
+                            int flow_idx = dim3_idx(i, j, c);
+                            int nw_flow_idx = dim3_idx(y_f, x_f, c);
+                            output[nw_flow_idx] += flow[flow_idx];
+                        }
+                        dlut[nw_depth_idx] += cur_depth;
+                        dlut_count[nw_depth_idx]++;
+                    }
+                    if (ne_depth == 100.0 || ne_depth > cur_depth + same_range) {
+                        for (int c = 0; c < dim_c; c++) {
+                            int flow_idx = dim3_idx(i, j, c);
+                            int ne_flow_idx = dim3_idx(y_f, x_c, c);
+                            output[ne_flow_idx] = flow[flow_idx];
+                        }
+                        dlut[ne_depth_idx] = cur_depth;
+                        dlut_count[ne_depth_idx] = 1;
+                    } else if (std::abs(ne_depth - cur_depth) <= same_range) {
+                        for (int c = 0; c < dim_c; c++) {
+                            int flow_idx = dim3_idx(i, j, c);
+                            int ne_flow_idx = dim3_idx(y_f, x_c, c);
+                            output[ne_flow_idx] += flow[flow_idx];
+                        }
+                        dlut[ne_depth_idx] += cur_depth;
+                        dlut_count[ne_depth_idx]++;
+                    }
+                    if (sw_depth == 100.0 || sw_depth > cur_depth + same_range) {
+                        for (int c = 0; c < dim_c; c++) {
+                            int flow_idx = dim3_idx(i, j, c);
+                            int sw_flow_idx = dim3_idx(y_c, x_f, c);
+                            output[sw_flow_idx] = flow[flow_idx];
+                        }
+                        dlut[sw_depth_idx] = cur_depth;
+                        dlut_count[sw_depth_idx] = 1;
+                    } else if (std::abs(sw_depth - cur_depth) <= same_range) {
+                        for (int c = 0; c < dim_c; c++) {
+                            int flow_idx = dim3_idx(i, j, c);
+                            int sw_flow_idx = dim3_idx(y_c, x_f, c);
+                            output[sw_flow_idx] += flow[flow_idx];
+                        }
+                        dlut[sw_depth_idx] += cur_depth;
+                        dlut_count[sw_depth_idx]++;
+                    }
+                    if (se_depth == 100.0 || se_depth > cur_depth + same_range) {
+                        for (int c = 0; c < dim_c; c++) {
+                            int flow_idx = dim3_idx(i, j, c);
+                            int se_flow_idx = dim3_idx(y_c, x_c, c);
+                            output[se_flow_idx] = flow[flow_idx];
+                        }
+                        dlut[se_depth_idx] = cur_depth;
+                        dlut_count[se_depth_idx] = 1;
+                    } else if (std::abs(se_depth - cur_depth) <= same_range) {
+                        for (int c = 0; c < dim_c; c++) {
+                            int flow_idx = dim3_idx(i, j, c);
+                            int se_flow_idx = dim3_idx(y_c, x_c, c);
+                            output[se_flow_idx] += flow[flow_idx];
+                        }
+                        dlut[se_depth_idx] += cur_depth;
+                        dlut_count[se_depth_idx]++;
+                    }
+                }
+            }
+        }
+        for (int i = 0; i < dim_h; i++) {
+            for (int j = 0; j < dim_w; j++) {
+                int depth_idx = dim2_idx(i, j);
+                if (!dlut_count[depth_idx]) continue;
+
+                for (int c = 0; c < dim_c; c++) {
+                    int flow_idx = dim3_idx(i, j, c);
+                    output[flow_idx] = output[flow_idx] / (double) dlut_count[depth_idx];
+                }
+            }
+        }
+
+        free(dlut);
+        free(dlut_count);
+        return;
+    }
+
 }
