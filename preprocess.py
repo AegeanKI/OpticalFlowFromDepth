@@ -1,7 +1,7 @@
 import utils
 # import using_clib
-from using_clib import Resample2d, ForwardWarping
-# from using_clib import ForwardWarping
+from using_clib import Resample2d
+from using_clib import Resample2d2
 import geometry  
 import flow_colors
 import math
@@ -37,7 +37,7 @@ class Plausible():
                        # [0,    1.92, 0.5, 0],
                        [0,    0.58, 0.5, 0],
                        [0,       0,   1, 0], 
-                       [0,       0,   0, 1]]], dtype=np.float32)
+                       [0,       0,   0, 1]]], dtype=np.float64)
 
         if another:
             K[:, :2, :2] *= 2
@@ -59,7 +59,7 @@ class Plausible():
         cz = utils.get_random(translation_range, translation_base)
         camera_mot = [cx, cy, cz]
 
-        axisangle = torch.from_numpy(np.array([[camera_ang]], dtype=np.float32))
+        axisangle = torch.from_numpy(np.array([[camera_ang]], dtype=np.float64))
         translation = torch.from_numpy(np.array([[camera_mot]]))
 
         if another_axisangle is not None and another_translation is not None:
@@ -149,11 +149,23 @@ class Convert():
         concat_flow = concat_flow + flow1
         return concat_flow
 
+class ConcatFlow(nn.Module):
+    def __init__(self, size, batch_size):
+        super().__init__()
+        self.size = size
+        self.batch_size = batch_size
+        self.fw = Resample2d2(size, batch_size)
+    
+    def forward(self, flowAB, back_flowAB, flowBC, imgB_depth):
+        concat_flow = self.fw(flowBC, back_flowAB, imgB_depth)
+        concat_flow = concat_flow + flowAB
+        return concat_flow
+
+
 class Preprocess(nn.Module):
     def __init__(self, device='cuda'):
         super().__init__()
         self.device = device
-        # self.fw = ForwardWarping().to(device)
         self.fw = Resample2d()
 
     def forward(self, img0_name, mono):
@@ -187,20 +199,20 @@ class Preprocess(nn.Module):
 
         np.save(f"{output_dir}/img0.npy", img0)
         np.save(f"{output_dir}/img0_depth.npy", img0_depth)
-        cv2.imwrite(f"{output_dir}/img0.png", img0)
-        plt.imsave(f"{output_dir}/img0_depth.png", 1 / img0_depth, cmap="magma")
+        # cv2.imwrite(f"{output_dir}/img0.png", img0)
+        # plt.imsave(f"{output_dir}/img0_depth.png", 1 / img0_depth, cmap="magma")
         # print(f"{np.min(img0) = }")
         # print(f"{np.max(img0) = }")
         # print(f"{np.min(img0_depth) = }")
         # print(f"{np.max(img0_depth) = }")
 
         back_flow01 = Convert.flow_to_backward_flow(flow01, img0_depth, size)
-        _, flow01_color = utils.color_flow(flow01)
-        _, back_flow01_color = utils.color_flow(back_flow01)
+        # _, flow01_color = utils.color_flow(flow01)
+        # _, back_flow01_color = utils.color_flow(back_flow01)
         torch.save(flow01, f"{output_dir}/flow01.pt")
         torch.save(back_flow01, f"{output_dir}/back_flow01.pt")
-        cv2.imwrite(f"{output_dir}/flow01.png", flow01_color)
-        cv2.imwrite(f"{output_dir}/back_flow01.png", back_flow01_color)
+        # cv2.imwrite(f"{output_dir}/flow01.png", flow01_color)
+        # cv2.imwrite(f"{output_dir}/back_flow01.png", back_flow01_color)
         # print(f"{torch.min(flow01) = }")
         # print(f"{torch.max(flow01) = }")
         # print(f"{torch.min(back_flow01) = }")
@@ -213,8 +225,8 @@ class Preprocess(nn.Module):
         img1_depth = utils.fix_depth(img1_depth, img1)
         np.save(f"{output_dir}/img1.npy", img1)
         np.save(f"{output_dir}/img1_depth.npy", img1_depth)
-        cv2.imwrite(f"{output_dir}/img1.png", img1)
-        plt.imsave(f"{output_dir}/img1_depth.png", 1 / img1_depth, cmap="magma")
+        # cv2.imwrite(f"{output_dir}/img1.png", img1)
+        # plt.imsave(f"{output_dir}/img1_depth.png", 1 / img1_depth, cmap="magma")
         # print(f"{np.min(img1) = }")
         # print(f"{np.max(img1) = }")
         # print(f"{np.min(img1_depth) = }")
@@ -223,12 +235,12 @@ class Preprocess(nn.Module):
 
         flow12 = Convert.depth_to_random_flow(img1_depth, size)
         back_flow12 = Convert.flow_to_backward_flow(flow12, img1_depth, size)
-        _, flow12_color = utils.color_flow(flow12)
-        _, back_flow12_color = utils.color_flow(back_flow12)
+        # _, flow12_color = utils.color_flow(flow12)
+        # _, back_flow12_color = utils.color_flow(back_flow12)
         torch.save(flow12, f"{output_dir}/flow12.pt")
         torch.save(back_flow12, f"{output_dir}/back_flow12.pt")
-        cv2.imwrite(f"{output_dir}/flow12.png", flow12_color)
-        cv2.imwrite(f"{output_dir}/back_flow12.png", back_flow12_color)
+        # cv2.imwrite(f"{output_dir}/flow12.png", flow12_color)
+        # cv2.imwrite(f"{output_dir}/back_flow12.png", back_flow12_color)
         # print(f"{torch.min(flow12) = }")
         # print(f"{torch.max(flow12) = }")
         # print(f"{torch.min(back_flow12) = }")
@@ -239,8 +251,8 @@ class Preprocess(nn.Module):
         img2_depth = utils.fix_depth(img2_depth, img1)
         np.save(f"{output_dir}/img2.npy", img2)
         np.save(f"{output_dir}/img2_depth.npy", img2_depth)
-        cv2.imwrite(f"{output_dir}/img2.png", img2)
-        plt.imsave(f"{output_dir}/img2_depth.png", 1 / img2_depth, cmap="magma")
+        # cv2.imwrite(f"{output_dir}/img2.png", img2)
+        # plt.imsave(f"{output_dir}/img2_depth.png", 1 / img2_depth, cmap="magma")
         # print(f"{np.min(img2) = }")
         # print(f"{np.max(img2) = }")
         # print(f"{np.min(img2_depth) = }")
@@ -249,12 +261,12 @@ class Preprocess(nn.Module):
         flow02 = Convert.two_contiguous_flows_to_one_flow(flow01, back_flow01, flow12,
                                                           img1_depth, size)
         back_flow02 = Convert.flow_to_backward_flow(flow02, img0_depth, size)
-        _, flow02_color = utils.color_flow(flow02)
-        _, back_flow02_color = utils.color_flow(back_flow02)
+        # _, flow02_color = utils.color_flow(flow02)
+        # _, back_flow02_color = utils.color_flow(back_flow02)
         torch.save(flow02, f"{output_dir}/flow02.pt")
         torch.save(back_flow02, f"{output_dir}/back_flow02.pt")
-        cv2.imwrite(f"{output_dir}/flow02.png", flow02_color)
-        cv2.imwrite(f"{output_dir}/back_flow02.png", back_flow02_color)
+        # cv2.imwrite(f"{output_dir}/flow02.png", flow02_color)
+        # cv2.imwrite(f"{output_dir}/back_flow02.png", back_flow02_color)
         # print(f"{torch.min(flow02) = }")
         # print(f"{torch.max(flow02) = }")
         # print(f"{torch.min(back_flow02) = }")

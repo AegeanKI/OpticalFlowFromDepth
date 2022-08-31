@@ -81,8 +81,9 @@ def get_mask(path, target_size):
     return instances_mask, instances, labels
     
 def get_random(random_range, random_begin, random_sign=True):
-    sign = ((-1) ** random.randrange(2)) if random_sign else 1
-    value = (random.random() * random_range + random_begin)
+    sign = torch.randint(0, 2, (1,))[0] * 2 - 1 if random_sign else torch.tensor(1)
+    # value = (random.random() * random_range + random_begin)
+    value = torch.rand(1)[0] * random_range + torch.tensor(random_begin)
     return sign * value
 
 def normalize_depth(depth):
@@ -106,9 +107,15 @@ def inpaint_img(img, masks):
 
 
 def fix_depth(img_depth, img):
-    img_depth[img_depth == 0] = 100
-    img_depth = sparse_bilateral_filtering(img_depth.copy(), img.copy(),
-                                           filter_size=[5, 5], num_iter=2)
+    print(f"{img_depth.shape = }")
+    print(f"{img.shape = }")
+    # img_depth[img_depth == 0] = 100
+    # img_depth = img_depth.detach().cpu().numpy()
+    # img = img.detach().cpu().numpy()
+
+    # for i in range(img_depth.shape[0]):
+    #     img_depth[i, 0] = sparse_bilateral_filtering(img_depth[i, 0].copy(), img[i].copy(),
+    #                                                  filter_size=[5, 5], num_iter=2)
     return img_depth
 
 

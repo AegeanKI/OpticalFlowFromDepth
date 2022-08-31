@@ -3,6 +3,7 @@ import preprocess
 import numpy as np
 import math
 import torch
+import torch.nn as nn
 # import torch.nn.functional as F
 import torchvision.transforms.functional as F
 from torchvision.models.optical_flow import Raft_Large_Weights
@@ -10,98 +11,129 @@ from torchvision.models.optical_flow import raft_large
 import cv2
 import matplotlib.pyplot as plt
 import pykitti
-from parser import DataParser
+# from parser import DataParser
 
-from preprocess import Convert
+from preprocess import Convert, ConcatFlow
 from bilateral_filter import sparse_bilateral_filtering
-# from using_clib import Resample2d
-from using_clib import ForwardWarping
+from using_clib import Resample2d2
+# from using_clib import ForwardWarping
+import glob
+import os
 
-class SpecialFlow():
-    @staticmethod
-    def flip(size):
-        print("flip")
-        h, w = size
-        meshgrid = np.meshgrid(range(w), range(h), indexing="xy")
-        p0 = np.stack(meshgrid, axis=-1).astype(np.float32)
+class SpecialFlow(nn.Module):
+    def __init__(self, size):
+        super().__init__()
+        self.h, self.w = size
 
+        meshgrid = torch.meshgrid(torch.arange(self.w), torch.arange(self.h), indexing="xy")
+        self.p0 = torch.stack(meshgrid, axis=-1).type(torch.float64).to("cuda")
+        # meshgrid = np.meshgrid(range(self.w), range(self.h), indexing="xy")
+        # self.p0 = np.stack(meshgrid, axis=-1).astype(np.float64)
+
+    def forward(self, augment_flow_type):
+        if augment_flow_type >= 7.:
+            p1, p_prev = self._shear()
+        elif augment_flow_type >= 6.:
+            p1, p_prev = self._rotate()
+        elif augment_flow_type >= 5.:
+            p1, p_prev = self._flip()
+
+        print(f"{p1.get_device() = }")
+        print(f"{p_prev.get_device() = }")
+
+        special_flow = (p1 - self.p0).permute(2, 0, 1).unsqueeze(0)
+        back_special_flow = (self.p0 - p_prev).permute(2, 0, 1).unsqueeze(0)
+        return special_flow, back_special_flow
+
+    def _flip(self):
         horizontal = utils.get_random(0, 1) > 0
+
         if horizontal:
-            meshgrid = np.meshgrid(range(w - 1, -1, -1), range(h), indexing="xy")
+            meshgrid = torch.meshgrid(torch.arange(self.w - 1, -1, -1), torch.arange(self.h), indexing="xy")
         else:
-            meshgrid = np.meshgrid(range(w), range(h - 1, -1, -1), indexing="xy")
-        p1 = np.stack(meshgrid, axis=-1).astype(np.float32)
-        flip_flow = torch.from_numpy(p1 - p0).unsqueeze(0)
-        backward_flip_flow = flip_flow
-        return flip_flow, backward_flip_flow
+            meshgrid = torch.meshgrid(torch.arange(self.w), torch.arange(self.h - 1, -1, -1), indexing="xy")
 
-    
-    @staticmethod
-    def rotate(size):
-        print("rotate")
-        h, w = size
-        meshgrid = np.meshgrid(range(w), range(h), indexing="xy")
-        p0 = np.stack(meshgrid, axis=-1).astype(np.float32)
+        p1 = torch.stack(meshgrid, axis=-1).type(torch.float64).to("cuda")
+        p_prev = p1
+        return p1, p_prev
 
-        c0 = np.random.randint(1, [3 * w, 3 * h]) - (w, h)
-        theta = np.deg2rad(utils.get_random(10, 15))
-        rotate = np.array([[np.cos(theta), -np.sin(theta)],
-                            [np.sin(theta), np.cos(theta)]])
-        reverse_rotate = np.array([[np.cos(-theta), -np.sin(-theta)],
-                                   [np.sin(-theta), np.cos(-theta)]])
+    def _rotate(self):
+        c0 = (utils.get_random(3 * self.w, -self.w), utils.get_random(3 * self.h, -self.h))
+        c0 = torch.tensor(c0).to("cuda")
+        theta = torch.deg2rad(torch.tensor(utils.get_random(10, 15)))
 
-        p1 = (p0 - c0) @ rotate + c0
-        p_prev = (p0 - c0) @ reverse_rotate + c0
-        rotate_flow = torch.from_numpy(p1 - p0).unsqueeze(0)
-        back_rotate_flow = torch.from_numpy(p0 - p_prev).unsqueeze(0)
-        return rotate_flow, back_rotate_flow
+        rotate = torch.tensor([[torch.cos(theta), -torch.sin(theta)],
+                               [torch.sin(theta), torch.cos(theta)]]).type(torch.float64).to("cuda")
+        reverse_rotate = torch.tensor([[torch.cos(-theta), -torch.sin(-theta)],
+                                       [torch.sin(-theta), torch.cos(-theta)]]).type(torch.float64).to("cuda")
 
-    @staticmethod
-    def shear(size):
-        print("shear")
-        h, w = size
-        meshgrid = np.meshgrid(range(w), range(h), indexing="xy")
-        p0 = np.stack(meshgrid, axis=-1).astype(np.float32)
+        p1 = (self.p0 - c0) @ rotate + c0
+        p_prev = (self.p0 - c0) @ reverse_rotate + c0
+        return p1, p_prev
 
+    def _shear(self):
         horizontal = utils.get_random(0, 1) > 0
         shear_range = utils.get_random(0.10, 0.15)
+
         if horizontal:
-            shear = np.array([[1, 0], [shear_range, 1]])
-            reverse_shear = np.array([[1, 0], [-shear_range, 1]])
+            shear = torch.tensor([[1, 0], [shear_range, 1]]).type(torch.float64).to("cuda")
+            reverse_shear = torch.tensor([[1, 0], [-shear_range, 1]]).type(torch.float64).to("cuda")
         else:
-            shear = np.array([[1, shear_range], [0, 1]])
-            reverse_shear = np.array([[1, -shear_range], [0, 1]])
+            shear = torch.tensor([[1, shear_range], [0, 1]]).type(torch.float64).to("cuda")
+            reverse_shear = torch.tensor([[1, -shear_range], [0, 1]]).type(torch.float64).to("cuda")
         
-        p1 = p0 @ shear
-        p_prev = p0 @ reverse_shear
-        shear_flow = torch.from_numpy(p1 - p0).unsqueeze(0)
-        back_shear_flow = torch.from_numpy(p0 - p_prev).unsqueeze(0)
-        return shear_flow, back_shear_flow
+        p1 = self.p0 @ shear
+        p_prev = self.p0 @ reverse_shear
+        return p1, p_prev
+
+class AugmentFlow(nn.Module):
+    def __init__(self, size, batch_size, device="cuda"):
+        super().__init__()
+        self.size = size
+        self.h, self.w = size
+        self.batch_size = batch_size
+        self.sf = SpecialFlow(size).to(device)
+
+    def forward(self, img0, img0_depth, img1, img1_depth, flow01, back_flow01):
+        augment_flow_type = utils.get_random(8, 0, False)
+        augment_flow_type = 5.2
+        if augment_flow_type >= 5.:
+            special_flow, back_special_flow = self.sf(augment_flow_type)
+            special_flow = special_flow.repeat(self.batch_size, 1, 1, 1)
+
+
 
 def augment_flow(img0, img0_depth, img1, img1_depth,
-                 flow01, back_flow01, size):
-    augment_flow_type = utils.get_random(3, 0)
-    augment_flow_type = 1.2
-    if augment_flow_type >= 2.:
-        special_flow_type = utils.get_random(3, 0, False)
-        special_flow_type = 1.
-        if special_flow_type >= 2.:
-            special_flow, back_special_flow = SpecialFlow.shear(size)
-        elif special_flow_type >= 1.:
-            special_flow, back_special_flow = SpecialFlow.rotate(size)
-        elif special_flow_type >= 0.:
-            special_flow, back_special_flow = SpecialFlow.flip(size)
+                 flow01, back_flow01, size, batch_size):
+    h, w = size
+    augment_flow_type = utils.get_random(8, 0, False)
+    augment_flow_type = 7.2
+    re = Resample2d2(size, batch_size)
+    if augment_flow_type >= 5.:
+        sf = SpecialFlow(size).to("cuda")
+        special_flow, back_special_flow = sf(augment_flow_type)
+        special_flow = special_flow.to("cuda")
+        back_special_flow = back_special_flow.to("cuda")
+        
+        print(f"{special_flow.get_device() = }")
 
-        augment_img0_flow = Convert.two_contiguous_flows_to_one_flow(special_flow, back_special_flow,
-                                                                     flow01, img0_depth, size)
-        augment_img1_flow = Convert.two_contiguous_flows_to_one_flow(flow01, back_flow01,
-                                                                     special_flow, img1_depth, size)
+        special_flow = special_flow.repeat(batch_size, 1, 1, 1)
+        back_special_flow = back_special_flow.repeat(batch_size, 1, 1, 1)
 
-        augment_img0 = ForwardWarping()(img0, special_flow, img0_depth, size)
-        augment_img0_depth = ForwardWarping()(img0_depth, special_flow, img0_depth, size)
+        # augment_img0_flow = Convert.two_contiguous_flows_to_one_flow(special_flow, back_special_flow,
+        #                                                              flow01, img0_depth, size)
+        cf = ConcatFlow(size, batch_size).to("cuda")
+        augment_img0_flow = cf(special_flow, back_special_flow, flow01, img0_depth)
+        augment_img1_flow = cf(flow01, back_flow01, special_flow, img1_depth)
+
+        # augment_img1_flow = Convert.two_contiguous_flows_to_one_flow(flow01, back_flow01,
+        #                                                              special_flow, img1_depth, size)
+
+        augment_img0 = re(img0, special_flow, img0_depth)
+        augment_img0_depth = re(img0_depth, special_flow, img0_depth)
         augment_img0_depth = utils.fix_depth(augment_img0_depth, augment_img0)
-        augment_img1 = ForwardWarping()(img1, special_flow, img1_depth, size)
-        augment_img1_depth = ForwardWarping()(img1_depth, special_flow, img1_depth, size)
+        augment_img1 = re(img1, special_flow, img1_depth)
+        augment_img1_depth = re(img1_depth, special_flow, img1_depth)
         augment_img1_depth = utils.fix_depth(augment_img1_depth, augment_img1)
 
         back_augment_img0_flow = Convert.flow_to_backward_flow(augment_img0_flow, augment_img0_depth, size)
@@ -112,11 +144,9 @@ def augment_flow(img0, img0_depth, img1, img1_depth,
                 img1, img1_depth), (
                 img0, img0_depth,
                 augment_img1_flow, back_augment_img1_flow,
-                augment_img1, augment_img1_depth)
-    elif augment_flow_type >= 1.:
-        adjust_flow_type = utils.get_random(2, 0, False)
-        adjust_flow_type = 1.2
-        if adjust_flow_type >= 1.:
+                augment_img1, augment_img1_depth), int(augment_flow_type)
+    elif augment_flow_type >= 3.:
+        if augment_flow_type >= 4.:
             h_len = int(utils.get_random(h / 4, h / 2, False))
             w_len = int(utils.get_random(w / 4, w / 2, False))
 
@@ -130,13 +160,13 @@ def augment_flow(img0, img0_depth, img1, img1_depth,
             flow_mask = np.zeros((h, w, 2))
             flow_mask[h_start:h_start + h_len, w_start:w_start + w_len] = 1
 
-            forward_img_mask = ForwardWarping()(img_mask, flow01, img0_depth, size)
-            forward_depth_mask = ForwardWarping()(depth_mask, flow01, img0_depth, size)
-            forward_flow_mask = ForwardWarping()(flow_mask, flow01, img0_depth, size)
-            backward_img_mask = ForwardWarping()(img_mask, back_flow01, img1_depth, size)
-            backward_depth_mask = ForwardWarping()(depth_mask, back_flow01, img1_depth, size)
-            backward_flow_mask = ForwardWarping()(flow_mask, back_flow01, img1_depth, size)
-        elif adjust_flow_type >= 0.:
+            forward_img_mask = re(img_mask, flow01, img0_depth)
+            forward_depth_mask = re(depth_mask, flow01, img0_depth)
+            forward_flow_mask = re(flow_mask, flow01, img0_depth)
+            backward_img_mask = re(img_mask, back_flow01, img1_depth)
+            backward_depth_mask = re(depth_mask, back_flow01, img1_depth)
+            backward_flow_mask = re(flow_mask, back_flow01, img1_depth)
+        elif augment_flow_type >= 3.:
             h_len = int(utils.get_random(h / 4, h / 4, False))
             w_len = int(utils.get_random(w / 4, w / 4, False))
 
@@ -150,12 +180,12 @@ def augment_flow(img0, img0_depth, img1, img1_depth,
             flow_mask = np.ones((h, w, 2))
             flow_mask[h_start:h_start + h_len, w_start:w_start + w_len] = 0
 
-            forward_img_mask = ForwardWarping()(img_mask, flow01, img0_depth, size)
-            forward_depth_mask = ForwardWarping()(depth_mask, flow01, img0_depth, size)
-            forward_flow_mask = ForwardWarping()(flow_mask, flow01, img0_depth, size)
-            backward_img_mask = ForwardWarping()(img_mask, back_flow01, img1_depth, size)
-            backward_depth_mask = ForwardWarping()(depth_mask, back_flow01, img1_depth, size)
-            backward_flow_mask = ForwardWarping()(flow_mask, back_flow01, img1_depth, size)
+            forward_img_mask = re(img_mask, flow01, img0_depth)
+            forward_depth_mask = re(depth_mask, flow01, img0_depth)
+            forward_flow_mask = re(flow_mask, flow01, img0_depth)
+            backward_img_mask = re(img_mask, back_flow01, img1_depth)
+            backward_depth_mask = re(depth_mask, back_flow01, img1_depth)
+            backward_flow_mask = re(flow_mask, back_flow01, img1_depth)
 
         augment_img0 = img0 * img_mask
         augment_img0_depth = img0_depth * depth_mask
@@ -169,31 +199,34 @@ def augment_flow(img0, img0_depth, img1, img1_depth,
         back_augment_img0_flow = back_flow01 * forward_flow_mask
         back_augment_img1_flow = back_flow01 * flow_mask
 
-        adjust_img0 = img0 * backward_img_mask
-        adjust_img0_depth = img0_depth * backward_depth_mask
-        adjust_img0_depth = utils.fix_depth(adjust_img0_depth, adjust_img0)
-        adjust_img1 = img1 * forward_img_mask
-        adjust_img1_depth = img1_depth * forward_depth_mask
-        adjust_img1_depth = utils.fix_depth(adjust_img1_depth, adjust_img1)
+        adjust = utils.get_random(0, 1) > 0
+        adjust_img0, adjust_img0_depth = img0, img0_depth
+        adjust_img1, adjust_img1_depth = img1, img1_depth
+        if adjust:
+            adjust_img0 = img0 * backward_img_mask
+            adjust_img0_depth = img0_depth * backward_depth_mask
+            adjust_img0_depth = utils.fix_depth(adjust_img0_depth, adjust_img0)
+            adjust_img1 = img1 * forward_img_mask
+            adjust_img1_depth = img1_depth * forward_depth_mask
+            adjust_img1_depth = utils.fix_depth(adjust_img1_depth, adjust_img1)
 
         return (augment_img0, augment_img0_depth,
                 augment_img0_flow, back_augment_img0_flow, 
                 adjust_img1, adjust_img1_depth), (
                 adjust_img0, adjust_img0_depth,
                 augment_img1_flow, back_augment_img1_flow,
-                augment_img1, augment_img1_depth)
+                augment_img1, augment_img1_depth), int(augment_flow_type)
     elif augment_flow_type >= 0.:
-        normal_flow_type = utils.get_random(3, 0, False)
-        if normal_flow_type >= 2.:
+        if augment_flow_type >= 2.:
             gray = np.array([[0.2989, 0.2989, 0.2989],
                              [0.5870, 0.5870, 0.5870],
                              [0.1140, 0.1140, 0.1140]])
             augment_img_func = lambda img, g=gray: img @ g
-        elif normal_flow_type >= 1.:
+        elif augment_flow_type >= 1.:
             channel = int(utils.get_random(3, 0, False))
             shift = np.array([utils.get_random(10, 15) if i == channel else 0 for i in range(3)])
             augment_img_func = lambda img, c=channel, s=shift: img + s
-        elif normal_flow_type >= 0.:
+        elif augment_flow_type >= 0.:
             scale = utils.get_random(1, 0, False)
             augment_img_func = lambda img, s=scale: img * s
 
@@ -205,31 +238,16 @@ def augment_flow(img0, img0_depth, img1, img1_depth,
                 img1, img1_depth), (
                 img0, img0_depth,
                 flow01, back_flow01, 
-                augment_img1, img1_depth)
+                augment_img1, img1_depth), int(augment_flow_type)
 
-    
 
-if __name__ == "__main__":
-    output_dir = "output/augment"
-    input_dir = f"output/stereo/saves" 
-    img0 = np.load(f"{input_dir}/img0.npy")
-    img1 = np.load(f"{input_dir}/img1.npy")
-    img2 = np.load(f"{input_dir}/img2.npy")
-    img0_depth = np.load(f"{input_dir}/img0_depth.npy")
-    img1_depth = np.load(f"{input_dir}/img1_depth.npy")
-    img2_depth = np.load(f"{input_dir}/img2_depth.npy")
-    flow01 = torch.load(f"{input_dir}/flow01.pt")
-    flow12 = torch.load(f"{input_dir}/flow12.pt")
-    flow02 = torch.load(f"{input_dir}/flow02.pt")
-    back_flow01 = torch.load(f"{input_dir}/back_flow01.pt")
-    back_flow12 = torch.load(f"{input_dir}/back_flow12.pt")
-    back_flow02 = torch.load(f"{input_dir}/back_flow02.pt")
-    h, w, c = img0.shape
-    size = (h, w)
-    
+def augment(img0, img0_depth, img1, img1_depth, flow01, back_flow01, size, output_dir, batch_size):
+    if not os.path.exists(output_dir):
+        os.mkdir(output_dir)
 
-    set1, set2 = augment_flow(img0, img0_depth, img1, img1_depth,
-                              flow01, back_flow01, size)
+    set1, set2, augment_flow_type = augment_flow(img0, img0_depth, img1, img1_depth,
+                                                 flow01, back_flow01, size, batch_size)
+
     (augment_img0, augment_img0_depth,
     augment_img0_flow, back_augment_img0_flow,
     img1, img1_depth) = set1
@@ -237,37 +255,124 @@ if __name__ == "__main__":
     augment_img1_flow, back_augment_img1_flow,
     augment_img1, augment_img1_depth) = set2
 
-
     output_dir_set1 = f"{output_dir}/set1"
+    if not os.path.exists(output_dir_set1):
+        os.mkdir(output_dir_set1)
+    
+    np.save(f"{output_dir_set1}/augment_img0.npy", augment_img0)
+    np.save(f"{output_dir_set1}/augment_img0_depth.npy", augment_img0_depth)
+    np.save(f"{output_dir_set1}/img1.npy", img1)
+    np.save(f"{output_dir_set1}/img1_depth.npy", img1_depth)
     cv2.imwrite(f"{output_dir_set1}/augment_img0.png", augment_img0)
     plt.imsave(f"{output_dir_set1}/augment_img0_depth.png", 1 / augment_img0_depth, cmap="magma")
     cv2.imwrite(f"{output_dir_set1}/img1.png", img1)
     plt.imsave(f"{output_dir_set1}/img1_depth.png", 1 / img1_depth, cmap="magma")
     _, augment_img0_flow_color = utils.color_flow(augment_img0_flow)
     _, back_augment_img0_flow_color = utils.color_flow(back_augment_img0_flow)
+    torch.save(augment_img0_flow, f"{output_dir_set1}/augment_img0_flow.pt")
+    torch.save(back_augment_img0_flow, f"{output_dir_set1}/back_augment_img0_flow.pt")
     cv2.imwrite(f"{output_dir_set1}/augment_img0_flow.png", augment_img0_flow_color)
     cv2.imwrite(f"{output_dir_set1}/back_augment_img0_flow.png", back_augment_img0_flow_color)
 
-    test = ForwardWarping()(augment_img0, augment_img0_flow, augment_img0_depth, size)
-    cv2.imwrite(f"{output_dir_set1}/test.png", test)
-
     output_dir_set2 = f"{output_dir}/set2"
+    if not os.path.exists(output_dir_set2):
+        os.mkdir(output_dir_set2)
+    np.save(f"{output_dir_set2}/img0.npy", img0)
+    np.save(f"{output_dir_set2}/img0_depth.npy", img0_depth)
+    np.save(f"{output_dir_set2}/augment_img1.npy", augment_img1)
+    np.save(f"{output_dir_set2}/augment_img1_depth.npy", augment_img1_depth)
     cv2.imwrite(f"{output_dir_set2}/img0.png", img0)
     plt.imsave(f"{output_dir_set2}/img0_depth.png", 1 / img0_depth, cmap="magma")
     cv2.imwrite(f"{output_dir_set2}/augment_img1.png", augment_img1)
     plt.imsave(f"{output_dir_set2}/augment_img1_depth.png", 1 / augment_img1_depth, cmap="magma")
     _, augment_img1_flow_color = utils.color_flow(augment_img1_flow)
     _, back_augment_img1_flow_color = utils.color_flow(back_augment_img1_flow)
+    torch.save(augment_img0_flow, f"{output_dir_set2}/augment_img1_flow.pt")
+    torch.save(back_augment_img0_flow, f"{output_dir_set2}/back_augment_img1_flow.pt")
     cv2.imwrite(f"{output_dir_set2}/augment_img1_flow.png", augment_img1_flow_color)
     cv2.imwrite(f"{output_dir_set2}/back_augment_img1_flow.png", back_augment_img1_flow_color)
 
+    
 
-    test2 = ForwardWarping()(img0, augment_img1_flow, img0_depth, size)
-    cv2.imwrite(f"{output_dir_set2}/test2.png", test2)
+if __name__ == "__main__":
+    img_dirs = glob.glob("output/monocular/*")
+      
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"{device = }")
+    for idx, img_dir in enumerate(img_dirs):
+        img_dir = "output/monocular/000000118762.jpg"
+
+        img0 = np.load(f"{img_dir}/img0.npy")
+        img1 = np.load(f"{img_dir}/img1.npy")
+        img2 = np.load(f"{img_dir}/img2.npy")
+        img0_depth = np.load(f"{img_dir}/img0_depth.npy")
+        img1_depth = np.load(f"{img_dir}/img1_depth.npy")
+        img2_depth = np.load(f"{img_dir}/img2_depth.npy")
+        flow01 = torch.load(f"{img_dir}/flow01.pt")
+        flow12 = torch.load(f"{img_dir}/flow12.pt")
+        flow02 = torch.load(f"{img_dir}/flow02.pt")
+        back_flow01 = torch.load(f"{img_dir}/back_flow01.pt")
+        back_flow12 = torch.load(f"{img_dir}/back_flow12.pt")
+        back_flow02 = torch.load(f"{img_dir}/back_flow02.pt")
+    
+        h, w, c = img0.shape
+        size = (h, w)
+
+        img0 = torch.from_numpy(img0).permute(2, 0, 1)
+        img1 = torch.from_numpy(img1).permute(2, 0, 1)
+        img2 = torch.from_numpy(img2).permute(2, 0, 1)
+        img0_depth = torch.from_numpy(img0_depth).unsqueeze(0)
+        img1_depth = torch.from_numpy(img1_depth).unsqueeze(0)
+        img2_depth = torch.from_numpy(img2_depth).unsqueeze(0)
+        flow01 = flow01.squeeze().permute(2, 0, 1)
+        flow12 = flow12.squeeze().permute(2, 0, 1)
+        flow02 = flow02.squeeze().permute(2, 0, 1)
+        back_flow01 = back_flow01.squeeze().permute(2, 0, 1)
+        back_flow12 = back_flow12.squeeze().permute(2, 0, 1)
+        back_flow02 = back_flow02.squeeze().permute(2, 0, 1)
+
+        batch_size = 4
+        img0 = img0.repeat(batch_size, 1, 1, 1).to(device)
+        img1 = img1.repeat(batch_size, 1, 1, 1).to(device)
+        img2 = img2.repeat(batch_size, 1, 1, 1).to(device)
+        img0_depth = img0_depth.repeat(batch_size, 1, 1, 1).to(device)
+        img1_depth = img1_depth.repeat(batch_size, 1, 1, 1).to(device)
+        img2_depth = img2_depth.repeat(batch_size, 1, 1, 1).to(device)
+        flow01 = flow01.repeat(batch_size, 1, 1, 1).to(device)
+        flow12 = flow12.repeat(batch_size, 1, 1, 1).to(device)
+        flow02 = flow02.repeat(batch_size, 1, 1, 1).to(device)
+        back_flow01 = back_flow01.repeat(batch_size, 1, 1, 1).to(device)
+        back_flow12 = back_flow12.repeat(batch_size, 1, 1, 1).to(device)
+        back_flow02 = back_flow02.repeat(batch_size, 1, 1, 1).to(device)
+
+        print(f"{img0.shape = }")
+        # print(f"{img1.shape = }")
+        # print(f"{img2.shape = }")
+        print(f"{img0_depth.shape = }")
+        # print(f"{img1_depth.shape = }")
+        # print(f"{img2_depth.shape = }")
+        print(f"{flow01.shape = }")
+        # print(f"{flow12.shape = }")
+        # print(f"{flow02.shape = }")
+        print(f"{back_flow01.shape = }")
+        # print(f"{back_flow12.shape = }")
+        # print(f"{back_flow02.shape = }")
+        print(f"{batch_size = }")
+        print(f"{h = }")
+        print(f"{w = }")
+        print("==============================\n")
+
+        img_name = img_dir.split("/")[-1]
+
+        if not os.path.exists(f"testing/{img_name}"):
+            os.mkdir(f"testing/{img_name}")
+        print(f"{img_name} {idx + 1} / {len(img_dirs)}")
+        augment(img0, img0_depth, img1, img1_depth, flow01, back_flow01, size, f"testing/{img_name}/01", batch_size)
+        # augment(img1, img1_depth, img2, img2_depth, flow12, back_flow12, size, f"output/augment/{img_name}/12", batch_size)
+        # augment(img0, img0_depth, img2, img2_depth, flow02, back_flow02, size, f"output/augment/{img_name}/02", batch_size)
 
 
-
-
+        break
 
 
 
