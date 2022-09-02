@@ -13,21 +13,25 @@ def get_img(path):
     img = cv2.imread(path, -1)
     if img.ndim == 2:
         h, w = img.shape
-        img = np.stack((img, img, img), -1)
+        img = torch.from_numpy(img).type(torch.float64).repeat(3, 1, 1)
     else:
         h, w, _ = img.shape
-    return img, (h, w)
+        img = torch.from_numpy(img).type(torch.float64).permute(2, 0, 1)
+    return img, (h, w) # CHW, (int, int), C = 3
 
 def get_stereo_img(path_left, path_right):
     left = cv2.imread(path_left, -1)
     right = cv2.imread(path_right, -1)
     if left.ndim == 2:
         h, w = left.shape
-        left = np.stack((left, left, left), -1)
-        right = np.stack((right, right, right), -1)
+        left = torch.from_numpy(left).type(torch.float64).repeat(3, 1, 1)
+        right = torch.from_numpy(right).type(torch.float64).repeat(3, 1, 1)
     else:
         h, w, _ = left.shape
-    return left, right, (h, w)
+        left = torch.from_numpy(left).type(torch.float64).permute(2, 0, 1)
+        right = torch.from_numpy(right).type(torch.float64).permute(2, 0, 1)
+
+    return left, right, (h, w) # CHW, CHW, (int, int), C = 1
 
 def get_depth(path, target_size, bits=8):
     # depth = cv2.imread(path, -1) / (2 ** bits - 1)
@@ -38,7 +42,8 @@ def get_depth(path, target_size, bits=8):
         depth = cv2.resize(depth, (w, h))
 
     depth = normalize_depth(depth)
-    return depth
+    depth = torch.from_numpy(depth).unsqueeze(0)
+    return depth # CHW, C = 1
 
 def get_disparity(path, target_size, bits=8):
     # disparity = cv2.imread(path, -1) / (2 ** bits - 1)
@@ -107,9 +112,9 @@ def inpaint_img(img, masks):
 
 
 def fix_depth(img_depth, img):
-    print(f"{img_depth.shape = }")
-    print(f"{img.shape = }")
-    # img_depth[img_depth == 0] = 100
+    # print(f"{img_depth.shape = }")
+    # print(f"{img.shape = }")
+    img_depth[img_depth == 0] = 100
     # img_depth = img_depth.detach().cpu().numpy()
     # img = img.detach().cpu().numpy()
 

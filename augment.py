@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 import pykitti
 # from parser import DataParser
 
-from preprocess import Convert, ConcatFlow
+from preprocess import Convert, ConcatFlow, BackFlow
 from bilateral_filter import sparse_bilateral_filtering
 from using_clib import Resample2d2
 # from using_clib import ForwardWarping
@@ -104,16 +104,16 @@ class AugmentFlow(nn.Module):
 
 
 def augment_flow(img0, img0_depth, img1, img1_depth,
-                 flow01, back_flow01, size, batch_size):
+                 flow01, back_flow01, size, batch_size, device):
     h, w = size
     augment_flow_type = utils.get_random(8, 0, False)
     augment_flow_type = 7.2
     re = Resample2d2(size, batch_size)
     if augment_flow_type >= 5.:
-        sf = SpecialFlow(size).to("cuda")
+        sf = SpecialFlow(size).to(device)
         special_flow, back_special_flow = sf(augment_flow_type)
-        special_flow = special_flow.to("cuda")
-        back_special_flow = back_special_flow.to("cuda")
+        special_flow = special_flow.to(device)
+        back_special_flow = back_special_flow.to(device)
         
         print(f"{special_flow.get_device() = }")
 
@@ -136,8 +136,11 @@ def augment_flow(img0, img0_depth, img1, img1_depth,
         augment_img1_depth = re(img1_depth, special_flow, img1_depth)
         augment_img1_depth = utils.fix_depth(augment_img1_depth, augment_img1)
 
-        back_augment_img0_flow = Convert.flow_to_backward_flow(augment_img0_flow, augment_img0_depth, size)
-        back_augment_img1_flow = Convert.flow_to_backward_flow(augment_img1_flow, img0_depth, size)
+        bf = BackFlow(size, batch_size).to("cuda")
+        # back_augment_img0_flow = Convert.flow_to_backward_flow(augment_img0_flow, augment_img0_depth, size)
+        # back_augment_img1_flow = Convert.flow_to_backward_flow(augment_img1_flow, img0_depth, size)
+        back_augment_img0_flow = bf(augment_img0_flow, augment_img0_depth)
+        back_augment_img1_flow = bf(augment_img1_flow, img0_depth)
 
         return (augment_img0, augment_img0_depth,
                 augment_img0_flow, back_augment_img0_flow, 
@@ -241,12 +244,13 @@ def augment_flow(img0, img0_depth, img1, img1_depth,
                 augment_img1, img1_depth), int(augment_flow_type)
 
 
-def augment(img0, img0_depth, img1, img1_depth, flow01, back_flow01, size, output_dir, batch_size):
+def augment(img0, img0_depth, img1, img1_depth, flow01, back_flow01, size, output_dir, batch_size, device):
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
 
     set1, set2, augment_flow_type = augment_flow(img0, img0_depth, img1, img1_depth,
-                                                 flow01, back_flow01, size, batch_size)
+                                                 flow01, back_flow01, size, batch_size, device)
+    return
 
     (augment_img0, augment_img0_depth,
     augment_img0_flow, back_augment_img0_flow,
@@ -255,46 +259,50 @@ def augment(img0, img0_depth, img1, img1_depth, flow01, back_flow01, size, outpu
     augment_img1_flow, back_augment_img1_flow,
     augment_img1, augment_img1_depth) = set2
 
-    output_dir_set1 = f"{output_dir}/set1"
-    if not os.path.exists(output_dir_set1):
-        os.mkdir(output_dir_set1)
+    # output_dir_set1 = f"{output_dir}/set1"
+    # if not os.path.exists(output_dir_set1):
+    #     os.mkdir(output_dir_set1)
     
-    np.save(f"{output_dir_set1}/augment_img0.npy", augment_img0)
-    np.save(f"{output_dir_set1}/augment_img0_depth.npy", augment_img0_depth)
-    np.save(f"{output_dir_set1}/img1.npy", img1)
-    np.save(f"{output_dir_set1}/img1_depth.npy", img1_depth)
-    cv2.imwrite(f"{output_dir_set1}/augment_img0.png", augment_img0)
-    plt.imsave(f"{output_dir_set1}/augment_img0_depth.png", 1 / augment_img0_depth, cmap="magma")
-    cv2.imwrite(f"{output_dir_set1}/img1.png", img1)
-    plt.imsave(f"{output_dir_set1}/img1_depth.png", 1 / img1_depth, cmap="magma")
-    _, augment_img0_flow_color = utils.color_flow(augment_img0_flow)
-    _, back_augment_img0_flow_color = utils.color_flow(back_augment_img0_flow)
-    torch.save(augment_img0_flow, f"{output_dir_set1}/augment_img0_flow.pt")
-    torch.save(back_augment_img0_flow, f"{output_dir_set1}/back_augment_img0_flow.pt")
-    cv2.imwrite(f"{output_dir_set1}/augment_img0_flow.png", augment_img0_flow_color)
-    cv2.imwrite(f"{output_dir_set1}/back_augment_img0_flow.png", back_augment_img0_flow_color)
+    # np.save(f"{output_dir_set1}/augment_img0.npy", augment_img0)
+    # np.save(f"{output_dir_set1}/augment_img0_depth.npy", augment_img0_depth)
+    # np.save(f"{output_dir_set1}/img1.npy", img1)
+    # np.save(f"{output_dir_set1}/img1_depth.npy", img1_depth)
+    # cv2.imwrite(f"{output_dir_set1}/augment_img0.png", augment_img0)
+    # plt.imsave(f"{output_dir_set1}/augment_img0_depth.png", 1 / augment_img0_depth, cmap="magma")
+    # cv2.imwrite(f"{output_dir_set1}/img1.png", img1)
+    # plt.imsave(f"{output_dir_set1}/img1_depth.png", 1 / img1_depth, cmap="magma")
+    # _, augment_img0_flow_color = utils.color_flow(augment_img0_flow)
+    # _, back_augment_img0_flow_color = utils.color_flow(back_augment_img0_flow)
+    # torch.save(augment_img0_flow, f"{output_dir_set1}/augment_img0_flow.pt")
+    # torch.save(back_augment_img0_flow, f"{output_dir_set1}/back_augment_img0_flow.pt")
+    # cv2.imwrite(f"{output_dir_set1}/augment_img0_flow.png", augment_img0_flow_color)
+    # cv2.imwrite(f"{output_dir_set1}/back_augment_img0_flow.png", back_augment_img0_flow_color)
 
-    output_dir_set2 = f"{output_dir}/set2"
-    if not os.path.exists(output_dir_set2):
-        os.mkdir(output_dir_set2)
-    np.save(f"{output_dir_set2}/img0.npy", img0)
-    np.save(f"{output_dir_set2}/img0_depth.npy", img0_depth)
-    np.save(f"{output_dir_set2}/augment_img1.npy", augment_img1)
-    np.save(f"{output_dir_set2}/augment_img1_depth.npy", augment_img1_depth)
-    cv2.imwrite(f"{output_dir_set2}/img0.png", img0)
-    plt.imsave(f"{output_dir_set2}/img0_depth.png", 1 / img0_depth, cmap="magma")
-    cv2.imwrite(f"{output_dir_set2}/augment_img1.png", augment_img1)
-    plt.imsave(f"{output_dir_set2}/augment_img1_depth.png", 1 / augment_img1_depth, cmap="magma")
-    _, augment_img1_flow_color = utils.color_flow(augment_img1_flow)
-    _, back_augment_img1_flow_color = utils.color_flow(back_augment_img1_flow)
-    torch.save(augment_img0_flow, f"{output_dir_set2}/augment_img1_flow.pt")
-    torch.save(back_augment_img0_flow, f"{output_dir_set2}/back_augment_img1_flow.pt")
-    cv2.imwrite(f"{output_dir_set2}/augment_img1_flow.png", augment_img1_flow_color)
-    cv2.imwrite(f"{output_dir_set2}/back_augment_img1_flow.png", back_augment_img1_flow_color)
+    # output_dir_set2 = f"{output_dir}/set2"
+    # if not os.path.exists(output_dir_set2):
+    #     os.mkdir(output_dir_set2)
+    # np.save(f"{output_dir_set2}/img0.npy", img0)
+    # np.save(f"{output_dir_set2}/img0_depth.npy", img0_depth)
+    # np.save(f"{output_dir_set2}/augment_img1.npy", augment_img1)
+    # np.save(f"{output_dir_set2}/augment_img1_depth.npy", augment_img1_depth)
+    # cv2.imwrite(f"{output_dir_set2}/img0.png", img0)
+    # plt.imsave(f"{output_dir_set2}/img0_depth.png", 1 / img0_depth, cmap="magma")
+    # cv2.imwrite(f"{output_dir_set2}/augment_img1.png", augment_img1)
+    # plt.imsave(f"{output_dir_set2}/augment_img1_depth.png", 1 / augment_img1_depth, cmap="magma")
+    # _, augment_img1_flow_color = utils.color_flow(augment_img1_flow)
+    # _, back_augment_img1_flow_color = utils.color_flow(back_augment_img1_flow)
+    # torch.save(augment_img0_flow, f"{output_dir_set2}/augment_img1_flow.pt")
+    # torch.save(back_augment_img0_flow, f"{output_dir_set2}/back_augment_img1_flow.pt")
+    # cv2.imwrite(f"{output_dir_set2}/augment_img1_flow.png", augment_img1_flow_color)
+    # cv2.imwrite(f"{output_dir_set2}/back_augment_img1_flow.png", back_augment_img1_flow_color)
 
     
 
 if __name__ == "__main__":
+    from cuda.fw import FW
+
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    dtype = torch.float64
     img_dirs = glob.glob("output/monocular/*")
       
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -314,24 +322,30 @@ if __name__ == "__main__":
         back_flow01 = torch.load(f"{img_dir}/back_flow01.pt")
         back_flow12 = torch.load(f"{img_dir}/back_flow12.pt")
         back_flow02 = torch.load(f"{img_dir}/back_flow02.pt")
+
+        cv2.imwrite(f"testing/img0.png", img0)
+        cv2.imwrite(f"testing/img1.png", img1)
+        cv2.imwrite(f"testing/img2.png", img2)
+        _, flow02_color = utils.color_flow(flow02)
+        cv2.imwrite(f"testing/flow02.png", flow02_color)
     
         h, w, c = img0.shape
         size = (h, w)
 
-        img0 = torch.from_numpy(img0).permute(2, 0, 1)
-        img1 = torch.from_numpy(img1).permute(2, 0, 1)
-        img2 = torch.from_numpy(img2).permute(2, 0, 1)
-        img0_depth = torch.from_numpy(img0_depth).unsqueeze(0)
-        img1_depth = torch.from_numpy(img1_depth).unsqueeze(0)
-        img2_depth = torch.from_numpy(img2_depth).unsqueeze(0)
-        flow01 = flow01.squeeze().permute(2, 0, 1)
-        flow12 = flow12.squeeze().permute(2, 0, 1)
-        flow02 = flow02.squeeze().permute(2, 0, 1)
-        back_flow01 = back_flow01.squeeze().permute(2, 0, 1)
-        back_flow12 = back_flow12.squeeze().permute(2, 0, 1)
-        back_flow02 = back_flow02.squeeze().permute(2, 0, 1)
+        img0 = torch.from_numpy(img0).permute(2, 0, 1).type(torch.float64)
+        img1 = torch.from_numpy(img1).permute(2, 0, 1).type(torch.float64)
+        img2 = torch.from_numpy(img2).permute(2, 0, 1).type(torch.float64)
+        img0_depth = torch.from_numpy(img0_depth).unsqueeze(0).type(torch.float64)
+        img1_depth = torch.from_numpy(img1_depth).unsqueeze(0).type(torch.float64)
+        img2_depth = torch.from_numpy(img2_depth).unsqueeze(0).type(torch.float64)
+        flow01 = flow01.squeeze().permute(2, 0, 1).type(torch.float64)
+        flow12 = flow12.squeeze().permute(2, 0, 1).type(torch.float64)
+        flow02 = flow02.squeeze().permute(2, 0, 1).type(torch.float64)
+        back_flow01 = back_flow01.squeeze().permute(2, 0, 1).type(torch.float64)
+        back_flow12 = back_flow12.squeeze().permute(2, 0, 1).type(torch.float64)
+        back_flow02 = back_flow02.squeeze().permute(2, 0, 1).type(torch.float64)
 
-        batch_size = 4
+        batch_size = 1
         img0 = img0.repeat(batch_size, 1, 1, 1).to(device)
         img1 = img1.repeat(batch_size, 1, 1, 1).to(device)
         img2 = img2.repeat(batch_size, 1, 1, 1).to(device)
@@ -345,29 +359,41 @@ if __name__ == "__main__":
         back_flow12 = back_flow12.repeat(batch_size, 1, 1, 1).to(device)
         back_flow02 = back_flow02.repeat(batch_size, 1, 1, 1).to(device)
 
-        print(f"{img0.shape = }")
-        # print(f"{img1.shape = }")
-        # print(f"{img2.shape = }")
-        print(f"{img0_depth.shape = }")
-        # print(f"{img1_depth.shape = }")
-        # print(f"{img2_depth.shape = }")
-        print(f"{flow01.shape = }")
-        # print(f"{flow12.shape = }")
-        # print(f"{flow02.shape = }")
-        print(f"{back_flow01.shape = }")
-        # print(f"{back_flow12.shape = }")
-        # print(f"{back_flow02.shape = }")
+        print(f"{img0.shape = }, {img0.dtype = }")
+        print(f"{img0_depth.shape = }, {img0_depth.dtype = }")
+        print(f"{flow01.shape = }, {flow01.dtype = }")
+        print(f"{back_flow01.shape = }, {back_flow01.dtype = }")
         print(f"{batch_size = }")
         print(f"{h = }")
         print(f"{w = }")
         print("==============================\n")
 
+        cf = ConcatFlow(size, batch_size).to("cuda")
+        test_flow = cf(flow01, back_flow01, flow12, img1_depth) 
+        test_flow_color = test_flow.cpu().permute(0, 2, 3, 1)
+        _, test_flow_color = utils.color_flow(test_flow_color)
+        cv2.imwrite(f"testing/test_flow.png", test_flow_color)
+
+        # concat_flow = Convert.two_contiguous_flows_to_one_flow(flow01, back_flow01, flow12, img1_depth, size)
+
+        fw = Resample2d2(size, batch_size).to("cuda")
+        test_img = fw(img0, test_flow, img0_depth)
+        test_img = test_img[0].permute(1, 2, 0).cpu().numpy()
+        cv2.imwrite(f"testing/test_img.png", test_img)
+        # test2_img = fw(img0, flow02, img0_depth)
+        # test2_img = test2_img[0].permute(1, 2, 0).cpu().numpy()
+        # cv2.imwrite(f"testing/test2_img.png", test2_img)
+
+
+
+        break
+
         img_name = img_dir.split("/")[-1]
 
-        if not os.path.exists(f"testing/{img_name}"):
-            os.mkdir(f"testing/{img_name}")
+        # if not os.path.exists(f"testing/{img_name}"):
+        #     os.mkdir(f"testing/{img_name}")
         print(f"{img_name} {idx + 1} / {len(img_dirs)}")
-        augment(img0, img0_depth, img1, img1_depth, flow01, back_flow01, size, f"testing/{img_name}/01", batch_size)
+        augment(img0, img0_depth, img1, img1_depth, flow01, back_flow01, size, f"testing/{img_name}/01", batch_size, device)
         # augment(img1, img1_depth, img2, img2_depth, flow12, back_flow12, size, f"output/augment/{img_name}/12", batch_size)
         # augment(img0, img0_depth, img2, img2_depth, flow02, back_flow02, size, f"output/augment/{img_name}/02", batch_size)
 
