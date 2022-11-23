@@ -25,9 +25,9 @@ class BackprojectDepth(nn.Module):
         self.w = w
 
         meshgrid = torch.meshgrid(torch.arange(self.w), torch.arange(self.h), indexing='xy')
-        self.id_coords = torch.stack(meshgrid, axis=0).type(torch.float64).to("cuda")
+        self.id_coords = torch.stack(meshgrid, axis=0).type(torch.float32).to("cuda")
 
-        self.ones = torch.ones(self.b, 1, self.h * self.w, dtype=torch.float64).to("cuda")
+        self.ones = torch.ones(self.b, 1, self.h * self.w, dtype=torch.float32).to("cuda")
 
         self.pix_coords = torch.unsqueeze(torch.stack(
             [self.id_coords[0].view(-1), self.id_coords[1].view(-1)], 0), 0)
@@ -37,7 +37,7 @@ class BackprojectDepth(nn.Module):
     def forward(self, depth, inv_K):
         cam_points = torch.matmul(inv_K[:, :3, :3], self.pix_coords)
         cam_points = depth.view(self.b, 1, -1) * cam_points
-        cam_points = torch.cat([cam_points, self.ones], 1)
+        cam_points = torch.cat([cam_points, self.ones], 1).type(torch.float32)
 
         return cam_points
 
@@ -84,13 +84,14 @@ def transformation_from_parameters(axisangle, translation, invert=False):
     else:
         M = torch.matmul(T, R)
 
+    del R, T, t
     return M
 
 
 def get_translation_matrix(translation_vector):
     """Convert a translation vector into a 4x4 transformation matrix
     """
-    T = torch.zeros(translation_vector.shape[0], 4, 4).type(torch.float64).to(device=translation_vector.device)
+    T = torch.zeros(translation_vector.shape[0], 4, 4).type(torch.float32).to(device=translation_vector.device)
 
     t = translation_vector.contiguous().view(-1, 3, 1)
 
@@ -100,6 +101,7 @@ def get_translation_matrix(translation_vector):
     T[:, 3, 3] = 1
     T[:, :3, 3, None] = t
 
+    del t
     return T
 
 
@@ -129,7 +131,7 @@ def rot_from_axisangle(vec):
     yzC = y * zC
     zxC = z * xC
 
-    rot = torch.zeros((vec.shape[0], 4, 4)).type(torch.float64).to(device=vec.device)
+    rot = torch.zeros((vec.shape[0], 4, 4)).type(torch.float32).to(device=vec.device)
 
     rot[:, 0, 0] = torch.squeeze(x * xC + ca)
     rot[:, 0, 1] = torch.squeeze(xyC - zs)
@@ -142,4 +144,10 @@ def rot_from_axisangle(vec):
     rot[:, 2, 2] = torch.squeeze(z * zC + ca)
     rot[:, 3, 3] = 1
 
+    del angle, axis
+    del ca, sa, C
+    del x, y, z
+    del xs, ys, zs
+    del xC, yC, zC
+    del xyC, yzC, zxC
     return rot

@@ -23,40 +23,60 @@ def getData(mode):
         return None
 
 
-class dCOCOLoader(data.Dataset):
-    def __init__(self, mode):
+class dCOCODataset(data.Dataset):
+    def __init__(self, mode, mono=True, device="cuda"):
         # self.root = root
         # self.img_name, self.label = getData(mode)
-        self.img_dirs = getData(mode)
+        # self.img_dirs = getData(mode)
         self.mode = mode
-        print(f"> Found {len(self.img_dirs)} dirs...")
+        self.mono = mono
+        self.device = device
+        # print(f"> Found {len(self.img_dirs)} dirs...")
+        batch_size = 4
+        self.every_batch_change_dir = 320 // batch_size
 
     def __len__(self):
-        return len(self.img_dirs)
+        # return len(self.img_dirs)
+        # return 20000 // 8
+        # return 1371
+        if self.mono:
+            return 919
+        else:
+            return 97
 
-    def __getitem__(self, index):
-        get_dir_path = lambda index: f"output/monocular/{self.img_dirs[index]}"
+    def __getitem__(self, batch_idx):
+        if self.mono:
+            batch_dir = f"output/monocular/{batch_idx // self.every_batch_change_dir}"
+        else:
+            batch_dir = f"output/stereo/{batch_idx // self.every_batch_change_dir}"
+
+        npz_file = np.load(f"{batch_dir}/{batch_idx}.npz")
+        img_depth_flow = npz_file['img_depth_flow']
+        # return torch.from_numpy(img_depth_flow).to(self.device)
+        return img_depth_flow
+
+        # get_dir_path = lambda index: f"output/monocular/{self.img_dirs[index]}"
         # transform = transforms.Compose([transforms.ToTensor()])
-        transform = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Resize([384, 384]),
-        ])
-        transform_flow = transforms.Compose([
-            transforms.Resize([384, 384]),
-        ])
+        # transform = transforms.Compose([
+        #     transforms.ToTensor(),
+        #     transforms.Resize([384, 384]),
+        # ])
+        # transform_flow = transforms.Compose([
+        #     transforms.Resize([384, 384]),
+        # ])
 
-        img0 = transform(np.load(f"{get_dir_path(index)}/img0.npy"))
-        img1 = transform(np.load(f"{get_dir_path(index)}/img1.npy"))
-        img2 = transform(np.load(f"{get_dir_path(index)}/img2.npy"))
-        img0_depth = transform(np.load(f"{get_dir_path(index)}/img0_depth.npy"))
-        img1_depth = transform(np.load(f"{get_dir_path(index)}/img1_depth.npy"))
-        img2_depth = transform(np.load(f"{get_dir_path(index)}/img2_depth.npy"))
-        flow01 = transform_flow(torch.load(f"{get_dir_path(index)}/flow01.pt").squeeze().permute(2, 0, 1))
-        flow12 = transform_flow(torch.load(f"{get_dir_path(index)}/flow12.pt").squeeze().permute(2, 0, 1))
-        flow02 = transform_flow(torch.load(f"{get_dir_path(index)}/flow02.pt").squeeze().permute(2, 0, 1))
-        back_flow01 = transform_flow(torch.load(f"{get_dir_path(index)}/back_flow01.pt").squeeze().permute(2, 0, 1))
-        back_flow12 = transform_flow(torch.load(f"{get_dir_path(index)}/back_flow12.pt").squeeze().permute(2, 0, 1))
-        back_flow02 = transform_flow(torch.load(f"{get_dir_path(index)}/back_flow02.pt").squeeze().permute(2, 0, 1))
+        # img0 = transform(np.load(f"{get_dir_path(index)}/img0.npy"))
+        # img1 = transform(np.load(f"{get_dir_path(index)}/img1.npy"))
+        # img2 = transform(np.load(f"{get_dir_path(index)}/img2.npy"))
+        # img0_depth = transform(np.load(f"{get_dir_path(index)}/img0_depth.npy"))
+        # img1_depth = transform(np.load(f"{get_dir_path(index)}/img1_depth.npy"))
+        # img2_depth = transform(np.load(f"{get_dir_path(index)}/img2_depth.npy"))
+        # flow01 = transform_flow(torch.load(f"{get_dir_path(index)}/flow01.pt").squeeze().permute(2, 0, 1))
+        # flow12 = transform_flow(torch.load(f"{get_dir_path(index)}/flow12.pt").squeeze().permute(2, 0, 1))
+        # flow02 = transform_flow(torch.load(f"{get_dir_path(index)}/flow02.pt").squeeze().permute(2, 0, 1))
+        # back_flow01 = transform_flow(torch.load(f"{get_dir_path(index)}/back_flow01.pt").squeeze().permute(2, 0, 1))
+        # back_flow12 = transform_flow(torch.load(f"{get_dir_path(index)}/back_flow12.pt").squeeze().permute(2, 0, 1))
+        # back_flow02 = transform_flow(torch.load(f"{get_dir_path(index)}/back_flow02.pt").squeeze().permute(2, 0, 1))
 
         # get_img = lambda index: Image.open(get_path(index)).convert('RGB')
         # get_label = lambda index: self.label[index]
