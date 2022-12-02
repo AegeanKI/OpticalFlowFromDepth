@@ -21,6 +21,8 @@ from tqdm import tqdm
 import os
 import matplotlib.pyplot as plt
 
+from argparse import ArgumentParser, BooleanOptionalAction
+
 # def get_loaders(batch_size):
 #     train_dataset = dCOCOLoader("train")
 #     # test_dataset = dCOCOLoader("test")
@@ -58,6 +60,21 @@ def get_data(img_depth_flow):
     return (img0, img1, img2, img0_depth, img1_depth, img2_depth,
             flow01, flow12, flow02, back_flow01, back_flow12, back_flow02)
 
+def read_args():
+    parser = ArgumentParser()
+
+    parser.add_argument('--use_small', default=False, type=bool, action=BooleanOptionalAction)
+    parser.add_argument('--dropout', type=float)
+    parser.add_argument('--output_dim', type=int)
+    parser.add_argument('--use_dropout_in_encoder', default=False, type=bool, action=BooleanOptionalAction)
+    parser.add_argument('--use_dropout_in_classify', default=False, type=bool, action=BooleanOptionalAction)
+    parser.add_argument('--gpu', type=int)
+    parser.add_argument('--lr', default=0.0002, type=float)
+        
+    args = parser.parse_args()
+    return args
+
+
 if __name__ == "__main__":
     torch.cuda.empty_cache()
     gc.collect()
@@ -68,8 +85,10 @@ if __name__ == "__main__":
     # info = nvidia_smi.nvmlDeviceGetMemoryInfo(handle) 
     # print(f"init {info.total = }, {info.free = }, {info.used = }")
 
-    lr = 0.00002
-    batch_size = 1
+    args = read_args()
+    print(args)
+
+    lr = args.lr
     # size = (640, 480)
     size = (1242, 375) 
     # size = (224, 224)
@@ -77,22 +96,26 @@ if __name__ == "__main__":
     max_epoch = 10000
     num_classes = 1 + 5
 
-    gpu = 2
+    gpu = args.gpu
     device = f"cuda:{gpu}" if torch.cuda.is_available() else "cpu"
     print(f"{device = }")
     if torch.cuda.is_available():
         torch.cuda.set_device(device)
 
-    model = Classifier(size=None, device=device, use_small=True)
+    # model = Classifier(size=None, device=device, use_small=True)
+    model = RAFTClassifier(size=None, device=device, output_dim=args.output_dim,
+                           dropout=args.dropout, use_small=args.use_small,
+                           use_dropout_in_encoder=args.use_dropout_in_encoder,
+                           use_dropout_in_classify=args.use_dropout_in_classify)
     model.to(device)
-    fw = FW(size, batch_size, device).to(device)
+    fw = FW(size, batch_size=1, device=device).to(device)
     # info = nvidia_smi.nvmlDeviceGetMemoryInfo(handle) 
     # print(f"after model {info.total = }, {info.free = }, {info.used = }")
 
     # model.load_state_dict(torch.load("output/models/first.pt"))
     loss_func = CrossEntropyLoss()
     # optimizer = Adam(model.parameters(), lr=lr)
-    optimizer = AdamW(model.parameters(), lr=lr, weight_decay=0.00005, eps=1e-8)
+    optimizer = AdamW(model.parameters(), lr=lr, weight_decay=0.0001, eps=1e-8)
 
     test_split = 0.2
     random_seed = 12345
@@ -218,15 +241,20 @@ if __name__ == "__main__":
                 # augment_imgB_flow = resize(set2[2])
                 augment_imgA_flow = set1[2]
                 augment_imgB_flow = set2[2]
-                # augment_imgA_depth = set1[1]
-                # augment_imgB_depth = set2[1]
+                augment_imgA_depth = set1[1]
+                augment_imgB_depth = set2[1]
                 # back_augment_imgA_flow = set1[3]
                 # back_augment_imgB_flow = set2[3]
+                _, _, h, w = augment_imgA_flow.shape
+                augment_imgA_flow[:, 0, :, :] = augment_imgA_flow[:, 0, :, :] / h
+                augment_imgA_flow[:, 1, :, :] = augment_imgA_flow[:, 1, :, :] / w
+                augment_imgB_flow[:, 0, :, :] = augment_imgB_flow[:, 0, :, :] / h
+                augment_imgB_flow[:, 1, :, :] = augment_imgB_flow[:, 1, :, :] / w
 
                 model.train()
                 optimizer.zero_grad()
-                predict1 = model(augment_imgA_flow)
-                # predict1 = model(torch.cat((augment_imgA_flow, augment_imgA_depth), axis=1))
+                # predict1 = model(augment_imgA_flow)
+                predict1 = model(torch.cat((augment_imgA_flow, 1 / augment_imgA_depth), axis=1))
                 loss1 = loss_func(predict1, augment_label)
                 loss1.backward()
                 optimizer.step()
@@ -238,8 +266,8 @@ if __name__ == "__main__":
 
                 model.train()
                 optimizer.zero_grad()
-                predict2 = model(augment_imgB_flow)
-                # predict2 = model(torch.cat((augment_imgB_flow, augment_imgB_depth), axis=1))
+                # predict2 = model(augment_imgB_flow)
+                predict2 = model(torch.cat((augment_imgB_flow, 1 / augment_imgB_depth), axis=1))
                 loss2 = loss_func(predict2, augment_label)
                 loss2.backward()
                 optimizer.step()
@@ -283,7 +311,7 @@ if __name__ == "__main__":
                 # print(f"        {predict3[0] = }")
                 # print(f"        {torch.max(predict3, dim=1).indices = }, {loss3 = }")
                 # print(f"        {predict4[0] = }")
-                # print(f"        {torch.max(predict4, dim=1).indices = }, {loss4 = }")
+                # print(f"        {SSSSSStorch.max(predict4, dim=1).indices = }, {loss4 = }")
 
                 # torch.cuda.empty_cache()
                 # break
@@ -411,15 +439,20 @@ if __name__ == "__main__":
                 # augment_imgB_flow = resize(set2[2])
                 augment_imgA_flow = set1[2]
                 augment_imgB_flow = set2[2]
-                # augment_imgA_depth = set1[1]
-                # augment_imgB_depth = set2[1]
+                augment_imgA_depth = set1[1]
+                augment_imgB_depth = set2[1]
                 # back_augment_imgA_flow = set1[3]
                 # back_augment_imgB_flow = set2[3]
+                _, _, h, w = augment_imgA_flow.shape
+                augment_imgA_flow[:, 0, :, :] = augment_imgA_flow[:, 0, :, :] / h
+                augment_imgA_flow[:, 1, :, :] = augment_imgA_flow[:, 1, :, :] / w
+                augment_imgB_flow[:, 0, :, :] = augment_imgB_flow[:, 0, :, :] / h
+                augment_imgB_flow[:, 1, :, :] = augment_imgB_flow[:, 1, :, :] / w
 
                 model.eval()
                 with torch.no_grad():
-                    predict1 = model(augment_imgA_flow)
-                    # predict1 = model(torch.cat((augment_imgA_flow, augment_imgA_depth), axis=1))
+                    # predict1 = model(augment_imgA_flow)
+                    predict1 = model(torch.cat((augment_imgA_flow, 1 / augment_imgA_depth), axis=1))
                 predict1 = torch.nn.Softmax(dim=1)(predict1)
                 total = total + augment_label.size(0)
                 correct = correct + (torch.max(predict1, dim=1).indices ==
@@ -430,8 +463,8 @@ if __name__ == "__main__":
 
                 model.eval()
                 with torch.no_grad():
-                    predict2 = model(augment_imgB_flow)
-                    # predict2 = model(torch.cat((augment_imgB_flow, augment_imgB_depth), axis=1))
+                    # predict2 = model(augment_imgB_flow)
+                    predict2 = model(torch.cat((augment_imgB_flow, 1 / augment_imgB_depth), axis=1))
                 predict2 = torch.nn.Softmax(dim=1)(predict2)
                 total = total + augment_label.size(0)
                 correct = correct + (torch.max(predict2, dim=1).indices ==
@@ -486,12 +519,13 @@ if __name__ == "__main__":
         print(f"                    test accuracy = {correct} / {total} = {correct / total}")
         if correct / total >= best_accuracy:
             best_accuracy = correct / total
+            model_name = type(model).__name__
             output_dim = model.output_dim
             dropout = model.dropout
             Inencoder = model.use_dropout_in_encoder
             Inclassify = model.use_dropout_in_classify
             print(f"{confusion_matrix = }")
-            torch.save(model.state_dict(), f"output/models/{output_dim=}{dropout=}{Inencoder=}{Inclassify=}.pt")
+            torch.save(model.state_dict(), f"output/models/model_name={model_name}{output_dim=}{dropout=}{Inencoder=}{Inclassify=}.pt")
         del img0, img1, img2
         del img0_depth, img1_depth, img2_depth
         del flow01, flow12, flow02
@@ -501,7 +535,7 @@ if __name__ == "__main__":
         del batch_idx, img_depth_flow
         torch.cuda.empty_cache()
 
-        lr = max(0.0000002, lr - 0.0000004)
+        lr = max(0.00002, lr - 0.00001)
 
         if save_to_test and epoch == 4:
             break
