@@ -68,6 +68,7 @@ __global__ void forward_warping_cuda_kernel(
         torch::PackedTensorAccessor32<scalar_t, 4, torch::RestrictPtrTraits> output,
         torch::PackedTensorAccessor32<scalar_t, 4, torch::RestrictPtrTraits> dlut,
         torch::PackedTensorAccessor32<scalar_t, 4, torch::RestrictPtrTraits> dlut_count,
+        torch::PackedTensorAccessor32<scalar_t, 4, torch::RestrictPtrTraits> collision,
         double same_range) {
     // printf("hi from blockIdx = (%d, %d), threadIdx = (%d, %d)\n", blockIdx.x, blockIdx.y, threadIdx.x, threadIdx.y);
     // auto dim_b = obj.size(0);
@@ -94,6 +95,27 @@ __global__ void forward_warping_cuda_kernel(
                 auto ne_depth = dlut[b][c][y_f][x_c] / dlut_count[b][c][y_f][x_c];
                 auto sw_depth = dlut[b][c][y_c][x_f] / dlut_count[b][c][y_c][x_f];
                 auto se_depth = dlut[b][c][y_c][x_c] / dlut_count[b][c][y_c][x_c];
+
+                if (dlut[b][c][y_f][x_f] != 100.0) {
+                    collision[b][0][y_f][x_f] = 0;
+                } else {
+                    collision[b][0][y_f][x_f] = 1;
+                }
+                if (dlut[b][c][y_f][x_c] != 100.0) {
+                    collision[b][0][y_f][x_c] = 0;
+                } else {
+                    collision[b][0][y_f][x_c] = 1;
+                }
+                if (dlut[b][c][y_c][x_f] != 100.0) {
+                    collision[b][0][y_c][x_f] = 0;
+                } else {
+                    collision[b][0][y_c][x_f] = 1;
+                }
+                if (dlut[b][c][y_c][x_c] != 100.0) {
+                    collision[b][0][y_c][x_c] = 0;
+                } else {
+                    collision[b][0][y_c][x_c] = 1;
+                }
 
                 if (nw_depth == 100.0 || nw_depth > cur_depth + same_range) {
                     output[b][c][y_f][x_f] = obj[b][c][j][i];
@@ -159,6 +181,7 @@ std::vector<torch::Tensor> forward_warping_cuda(
     auto output = torch::zeros_like(obj);
     auto dlut = torch::ones_like(obj) * 100.;
     auto dlut_count = torch::zeros_like(obj);
+    auto collision = torch::zeros_like(depth);
 
     auto dim_b = obj.size(0);
     auto dim_c = obj.size(1);
@@ -177,10 +200,11 @@ std::vector<torch::Tensor> forward_warping_cuda(
             output.packed_accessor32<scalar_t, 4, torch::RestrictPtrTraits>(),
             dlut.packed_accessor32<scalar_t, 4, torch::RestrictPtrTraits>(),
             dlut_count.packed_accessor32<scalar_t, 4, torch::RestrictPtrTraits>(),
+            collision.packed_accessor32<scalar_t, 4, torch::RestrictPtrTraits>(),
             same_range);
     }));
 
 
 
-    return {output};
+    return {output, collision};
 }
