@@ -149,40 +149,38 @@ def train(args):
     model.cuda()
     model.train()
 
-    if args.stage != 'chairs':
+    if args.stage != 'chairs' and args.stage != 'augmentedredweb':
         model.module.freeze_bn()
-    
+
     # =====
-    which_time = 1671161250.3501413 
+    # which_time = 1671161250.3501413
     # train_acc, test_acc = 0.663, 0.647
     # train_acc, test_acc = 0.738, 0.774
-    train_acc, test_acc = 0.763, 0.774
-    classifier_checkpoints_dir = f"outputs/models/{which_time}"
-    classifier_checkpoints_name = f"{train_acc=}_{test_acc=}.pt"
+    # train_acc, test_acc = 0.763, 0.774
 
-    # classifier_args = json.load(f"outputs/models/{which_time}/args.txt")
-    with open(f"{classifier_checkpoints_dir}/args.txt") as f:
-        classifier_args = json.load(f)
-    print(f"{classifier_args = }")
-    classifier = RAFTClassifier(device=args.gpus[0],
-                                output_dim=classifier_args["output_dim"],
-                                dropout=classifier_args["dropout"],
-                                use_small=classifier_args["use_small"],
-                                use_dropout_in_encoder=classifier_args["use_dropout_in_encoder"],
-                                use_dropout_in_classify=classifier_args["use_dropout_in_classify"],
-                                use_average_pooling=classifier_args["use_average_pooling"])
-    classifier.load_state_dict(torch.load(f"{classifier_checkpoints_dir}/{classifier_checkpoints_name}"))
-    classifier.to(args.gpus[0])
-    classifier.eval()
-    classify_loss_func = CrossEntropyLoss()
+    if args.add_classifier:
+        classifier_checkpoints_dir = f"outputs/models/{args.classifier_checkpoint_timestamp}"
+        train_acc = args.classifier_checkpoint_train_acc
+        test_acc = args.classifier_checkpoint_test_acc
+        classifier_checkpoints_name = f"{train_acc=}_{test_acc=}.pt"
+        with open(f"{classifier_checkpoints_dir}/args.txt") as f:
+            classifier_args = json.load(f)
+        print(f"{classifier_args = }")
+        classifier = RAFTClassifier(device=args.gpus[0],
+                                    output_dim=classifier_args["output_dim"],
+                                    dropout=classifier_args["dropout"],
+                                    use_small=classifier_args["use_small"],
+                                    use_dropout_in_encoder=classifier_args["use_dropout_in_encoder"],
+                                    use_dropout_in_classify=classifier_args["use_dropout_in_classify"],
+                                    use_average_pooling=classifier_args["use_average_pooling"])
+        classifier.load_state_dict(torch.load(f"{classifier_checkpoints_dir}/{classifier_checkpoints_name}"))
+        classifier.to(args.gpus[0])
+        classifier.eval()
+        classify_loss_func = CrossEntropyLoss()
 
-    classify_loss_weight = 60
-    # classify_weight_increase_ratio = 0.005
-    # classify_weight_increase_ratio = 0.001
-    classify_weight_increase_ratio = 0
-    max_classify_loss = 100
+        classify_loss_weight = args.classify_loss_weight_init
 
-    h, w = args.image_size
+        h, w = args.image_size
     # =====
 
     train_loader = datasets.fetch_dataloader(args)
@@ -192,8 +190,7 @@ def train(args):
     scaler = GradScaler(enabled=args.mixed_precision)
     logger = Logger(model, scheduler)
 
-    VAL_FREQ = 1000
-    # VAL_FREQ = 1
+    VAL_FREQ = args.val_freq
     add_noise = True
 
     should_keep_training = True
@@ -212,30 +209,27 @@ def train(args):
                 image1 = (image1 + stdv * torch.randn(*image1.shape).cuda()).clamp(0.0, 255.0)
                 image2 = (image2 + stdv * torch.randn(*image2.shape).cuda()).clamp(0.0, 255.0)
 
-            flow_predictions = model(image1, image2, iters=args.iters) 
-
-            # =====
-            # print(f"{flow_predictions[-1].shape = }")
-            # sys.exit()
-
-            normalized_flow = flow_predictions[-1]
-            normalized_flow[:, 0] = normalized_flow[:, 0] / h
-            normalized_flow[:, 1] = normalized_flow[:, 1] / w
-            normalized_depth = image1_depth / 100
-            normalized_flow_depth = torch.cat((normalized_flow, normalized_depth), axis=1).float()
-            predict1 = classifier(normalized_flow_depth)
-            classify_loss = classify_loss_func(predict1, label) 
-            # =====
-
+            flow_predictions = model(image1, image2, iters=args.iters)
             loss, metrics = sequence_loss(flow_predictions, flow, valid, args.gamma)
-            
-            # ====
-            print(f"{total_steps}: loss = flow_loss + classify_loss * {classify_loss_weight:.3f}", end='')
-            print(f" = {loss.item()} + {classify_loss.item()} * {classify_loss_weight:.3f}")
-            loss = loss + classify_loss * classify_loss_weight
-            classify_loss_weight = min(max_classify_loss, classify_loss_weight + classify_weight_increase_ratio)
 
-            # print(f"{total_steps}: loss = flow_loss = {loss.item()}")
+            # =====
+            if args.add_classifier:
+                normalized_flow = flow_predictions[-1]
+                normalized_flow[:, 0] = normalized_flow[:, 0] / h
+                normalized_flow[:, 1] = normalized_flow[:, 1] / w
+                normalized_depth = image1_depth / 100
+                normalized_flow_depth = torch.cat((normalized_flow, normalized_depth), axis=1).float()
+                predict1 = classifier(normalized_flow_depth)
+                classify_loss = classify_loss_func(predict1, label)
+                print(f"{total_steps}: loss = flow_loss + classify_loss * {classify_loss_weight:.3f}", end='')
+                print(f" = {loss.item()} + {classify_loss.item()} * {classify_loss_weight:.3f}")
+                loss = loss + classify_loss * classify_loss_weight
+
+                classify_loss_weight = classify_loss_weight + args.classify_loss_weight_increase
+                classify_loss_weight = max(args.min_classify_loss_weight, classify_loss_weight)
+                classify_loss_weight = min(args.max_classify_loss_weight, classify_loss_weight)
+            else:
+                print(f"{total_steps}: loss = flow_loss = {loss.item()}")
             # ====
 
             scaler.scale(loss).backward()
@@ -264,7 +258,7 @@ def train(args):
                 logger.write_dict(results)
                 
                 model.train()
-                if args.stage != 'chairs':
+                if args.stage != 'chairs' and args.stage != 'augmentedredweb':
                     model.module.freeze_bn()
             
             total_steps += 1
@@ -273,7 +267,6 @@ def train(args):
                 should_keep_training = False
                 break
         #     break
-        #     # sys.exit()
         # break
 
     logger.close()
@@ -305,6 +298,17 @@ if __name__ == '__main__':
     parser.add_argument('--dropout', type=float, default=0.0)
     parser.add_argument('--gamma', type=float, default=0.8, help='exponential weighting')
     parser.add_argument('--add_noise', action='store_true')
+
+    parser.add_argument('--val_freq', type=int, default=5000)
+    parser.add_argument('--add_classifier', action='store_true')
+    parser.add_argument('--classifier_checkpoint_timestamp')
+    parser.add_argument('--classifier_checkpoint_train_acc', type=float)
+    parser.add_argument('--classifier_checkpoint_test_acc', type=float)
+    parser.add_argument('--classify_loss_weight_init', type=float)
+    parser.add_argument('--classify_loss_weight_increase', type=float)
+    parser.add_argument('--max_classify_loss_weight', type=float)
+    parser.add_argument('--min_classify_loss_weight', type=float)
+
     args = parser.parse_args()
 
     torch.manual_seed(1234)

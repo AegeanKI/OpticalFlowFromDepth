@@ -243,6 +243,8 @@ class RAFTAugmentedReDWeb(FlowDataset):
         else:
             valid = (flow[0].abs() < 1000) & (flow[1].abs() < 1000)
 
+        valid = valid & (img1_depth != 100)
+
         return img1, img2, flow, img1_depth, valid.float(), label
 
 

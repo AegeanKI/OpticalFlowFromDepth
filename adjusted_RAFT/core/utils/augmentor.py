@@ -60,15 +60,16 @@ class FlowAugmentor:
                 y0 = np.random.randint(0, ht)
                 dx = np.random.randint(bounds[0], bounds[1])
                 dy = np.random.randint(bounds[0], bounds[1])
-                img2[y0:y0+dy, x0:x0+dx, :] = mean_color
+                img2[y0:y0 + dy, x0:x0 + dx, :] = mean_color
 
         return img1, img2
 
     def spatial_transform(self, img1, img2, flow, img1_depth):
         # randomly sample scale
         ht, wd = img1.shape[:2]
+
         min_scale = np.maximum(
-            (self.crop_size[0] + 8) / float(ht), 
+            (self.crop_size[0] + 8) / float(ht),
             (self.crop_size[1] + 8) / float(wd))
 
         scale = 2 ** np.random.uniform(self.min_scale, self.max_scale)
@@ -77,7 +78,7 @@ class FlowAugmentor:
         if np.random.rand() < self.stretch_prob:
             scale_x *= 2 ** np.random.uniform(-self.max_stretch, self.max_stretch)
             scale_y *= 2 ** np.random.uniform(-self.max_stretch, self.max_stretch)
-        
+
         scale_x = np.clip(scale_x, min_scale, None)
         scale_y = np.clip(scale_y, min_scale, None)
         # print(f"{img1_depth.shape = }")
