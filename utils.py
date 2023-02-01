@@ -45,11 +45,13 @@ def get_stereo_img(path_left, path_right):
     return left, right, (h, w) # CHW, CHW, (int, int), C = 1
 
 def get_depth(path, normalize=True):
-    depth = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+    depth = cv2.imread(path, cv2.IMREAD_GRAYSCALE).astype(float)
 
-    depth = 1.0 / (depth + 0.005)
+    # depth = 1.0 / (depth + 0.005)
+    depth = 1.0 / depth
     if normalize:
         depth = normalize_depth(depth)
+    depth = 1.0 / depth
 
     h, w = depth.shape
     depth = torch.from_numpy(depth).unsqueeze(0)
@@ -57,9 +59,7 @@ def get_depth(path, normalize=True):
     return depth, (h, w) # CHW, C = 1
 
 def get_disparity(path):
-    disp = cv2.imread(path, cv2.IMREAD_UNCHANGED)
-    # print(f"{disp.min() = }")
-    # print(f"{disp.max() = }")
+    disp = cv2.imread(path, cv2.IMREAD_UNCHANGED).astype(float)
 
     disp[disp == np.inf] = 0
     # disp = cv2.normalize(disp, None, 0, 255, cv2.NORM_MINMAX)

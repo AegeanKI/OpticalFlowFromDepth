@@ -131,7 +131,8 @@ if __name__ == "__main__":
                                use_average_pooling=args.use_average_pooling)
     model.to(device)
     if args.checkpoints is not None:
-    # model.load_state_dict(torch.load("output/models/first.pt"))
+        # model.load_state_dict(torch.load("outputs/models/1672736027.9198592/train_acc=0.507_test_acc=0.596.pt"))
+        model.load_state_dict(torch.load(args.checkpoints))
     loss_func = CrossEntropyLoss()
     # optimizer = Adam(model.parameters(), lr=lr)
     optimizer = AdamW(model.parameters(), lr=lr, weight_decay=0.0001, eps=1e-8)

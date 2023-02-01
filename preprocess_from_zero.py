@@ -396,7 +396,9 @@ class Convert():
         _, _, w = depth.shape
         s = utils.get_random(175, 50, random_sign=False)
        
-        disparity = s * (1 / depth) * depth.max() / w
+        disparity = s * (1 / depth) * depth.max()
+        B, f = Plausible.B(), Plausible.f()
+        disparity = B * f / depth - 0.25
         del s
         return disparity
 
@@ -505,6 +507,7 @@ class PreprocessPlusAugment(nn.Module):
     # def forward(self, img0, img0_depth, output_dir):
     def forward(self, datas, output_dir, is_stereo=False):
         start_preprocess_time = time.time()
+        # print(f"{output_dir = }")
 
         if not is_stereo:
             img0, img0_depth = datas
@@ -589,7 +592,7 @@ class PreprocessPlusAugment(nn.Module):
         # cv2.imwrite(f"{group_output_dir}/img0.png", img0.permute(1, 2, 0).cpu().numpy())
         # plt.imsave(f"{group_output_dir}/img0_depth.png", 1 / img0_depth[0].cpu().numpy(), cmap="magma")
         # cv2.imwrite(f"{group_output_dir}/img1.png", img1.permute(1, 2, 0).cpu().numpy())
-        # cv2.imwrite(f"{group_output_dir}/img1_real.png", img1_real.permute(1, 2, 0).cpu().numpy())
+        # # cv2.imwrite(f"{group_output_dir}/img1_real.png", img1_real.permute(1, 2, 0).cpu().numpy())
         # plt.imsave(f"{group_output_dir}/img1_depth.png", 1 / img1_depth[0].cpu().numpy(), cmap="magma")
         # cv2.imwrite(f"{group_output_dir}/img2.png", img2.permute(1, 2, 0).cpu().numpy())
         # plt.imsave(f"{group_output_dir}/img2_depth.png", 1 / img2_depth[0].cpu().numpy(), cmap="magma")
@@ -612,18 +615,17 @@ class PreprocessPlusAugment(nn.Module):
         # warped_img2, _, _ = self.fw(img0, flow02, img0_depth)
         # cv2.imwrite(f"{group_output_dir}/warped_img1.png", warped_img1.permute(1, 2, 0).cpu().numpy())
         # cv2.imwrite(f"{group_output_dir}/warped_img2.png", warped_img2.permute(1, 2, 0).cpu().numpy())
-        # return
 
         for group_idx, (imgA, imgA_depth, imgB, imgB_depth, flowAB, back_flowAB) in enumerate(group):
             for augment_idx, augment_flow_type in enumerate([0, 5, 6, 7, 1, 5, 6, 7, 2, 5, 6, 7]):
             # for augment_idx, augment_flow_type in enumerate([0, 1, 2, 5, 6, 7]):
             # for augment_idx, augment_flow_type in enumerate([5, 6, 7]):
-                set1, set2, _ = augment_flow(imgA, imgA_depth, imgB, imgB_depth, flowAB,
-                                             back_flowAB, device=self.device,
-                                             augment_flow_type=augment_flow_type)
-                # set1, set2, _ = augment_flow_small(imgA, imgA_depth, imgB, imgB_depth, flowAB,
+                # set1, set2, _ = augment_flow(imgA, imgA_depth, imgB, imgB_depth, flowAB,
                 #                              back_flowAB, device=self.device,
                 #                              augment_flow_type=augment_flow_type)
+                set1, set2, _ = augment_flow_small(imgA, imgA_depth, imgB, imgB_depth, flowAB,
+                                             back_flowAB, device=self.device,
+                                             augment_flow_type=augment_flow_type)
 
                 to_save_data1 = torch.cat([set1[i] for i in range(0, 4)], axis=0) # img0, img0_depth, flow01, back_flow01
                                                                                   #  0:3         3:4     4:6          6:8
@@ -713,7 +715,7 @@ def read_args():
 
 if __name__ == "__main__":
     args = read_args()
-    seed_mapping = {"ReDWeb": 0, "ETH3D": 10, "DIML": 30}
+    seed_mapping = {"ReDWeb": 0, "ETH3D": 10, "DIML": 30, "test_ReDWeb": 20}
     utils.set_seed(12345 + args.split_id + seed_mapping[args.dataset])
     print(args)
 
@@ -733,9 +735,13 @@ if __name__ == "__main__":
         dataset = DIML("datasets/DIML")
         output_dirs = ["outputsA/DIML", "outputsB/DIML", "outputsC/DIML"]
         is_stereo = True
+    elif args.dataset == "test_ReDWeb":
+        dataset = ReDWeb("datasets/ReDWeb_V1/")
+        output_dirs = ["outputsD/test_ReDWeb_V1", "outputsB/test_ReDWeb_V1", "outputsC/test_ReDWeb_V1"] 
 
 
     EVERY_IMAGES_CHANGE_OUTPUT_DIR = len(dataset) / 3
+    # EVERY_IMAGES_CHANGE_OUTPUT_DIR = (1698 + 2) / 3
     # device = "cuda:1" if torch.cuda.is_available() else "cpu"
     device = f"cuda:{args.gpu}"
 
@@ -749,15 +755,63 @@ if __name__ == "__main__":
 
     print(f"{len(dataset) = }, {is_stereo = }, {start = }, {end = }")
 
+    # resize = T.Resize((480, 640))
+
+    count = 0
     for epoch_idx in range(args.max_epoch):
         for img_idx in range(start, end):
+            print(f"{img_idx + 1} / {len(dataset)}: ")
             utils.set_seed(12345 + img_idx + epoch_idx * len(dataset))
             datas = dataset[img_idx]
-            img0, img1, disp0, disp1 = datas
-            print(f"{img_idx + 1} / {len(dataset)}: ")
+            # img0, img0_depth = datas
+            # _, h, w = img0.shape
+            # if h < 350 or w < 350:
+            #     continue
+
+            # img0 = resize(img0)
+            # img0_depth = resize(img0_depth)
+
+            # datas = (img0, img0_depth)
+
+            # print(f"{count = }")
+            # # img_idx = count + 837
+            # img_idx = count
+
             output_dir = output_dirs[int(img_idx / EVERY_IMAGES_CHANGE_OUTPUT_DIR)]
             if not os.path.exists(output_dir):
                 os.makedirs(output_dir)
             ppa(datas, f"{output_dir}/{img_idx + (epoch_idx) * len(dataset)}", is_stereo)
+            # count = count + 1
             # break
         # break
+    
+    
+    # areas = np.load("areas.npy")
+    # hs = np.load("hs.npy")
+    # ws = np.load("ws.npy")
+    # print(f"{len(areas) = }")
+    # print(f"{np.mean(areas) = }, {np.var(areas) = }, {np.min(areas) = }, {np.max(areas) = }")
+    # print(f"{np.mean(hs) = }, {np.var(hs) = }, {np.min(hs) = }, {np.max(hs) = }")
+    # print(f"{np.mean(ws) = }, {np.var(ws) = }, {np.min(ws) = }, {np.max(ws) = }")
+
+    # h_limit = 350
+    # w_limit = 350
+
+    # # condition = (areas >= h_limit * w_limit)
+    # condition = ((hs >= h_limit) & (ws >= w_limit)) 
+
+    # areas_a = areas[condition]
+    # hs_a = hs[condition]
+    # ws_a = ws[condition]
+    # print(f"{len(areas_a) = }")
+    # print(f"{np.mean(areas_a) = }, {np.var(areas_a) = }, {np.min(areas_a) = }, {np.max(areas_a) = }")
+    # print(f"{np.mean(hs_a) = }, {np.var(hs_a) = }, {np.min(hs_a) = }, {np.max(hs_a) = }")
+    # print(f"{np.mean(ws_a) = }, {np.var(ws_a) = }, {np.min(ws_a) = }, {np.max(ws_a) = }")
+
+    # print(f"{np.sum(areas_a >= 480 * 640) = }")
+    # print(f"{np.sum(areas_a >= 384 * 512) = }")
+    # print(f"{np.sum(areas_a >= 368 * 496) = }")
+
+    # np.save("areas.npy", areas)
+    # np.save("hs.npy", hs)
+    # np.save("ws.npy", ws)

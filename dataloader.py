@@ -33,42 +33,42 @@ class ReDWeb(data.Dataset):
 
         return img, depth
 
-class Middlebury(data.Dataset):
-    def __init__(self, dataset_dir, num_images=None):
-        self.dataset_dir = dataset_dir
-        self.img_paths = glob.glob(f"{dataset_dir}/*")
-        random.shuffle(self.img_paths)
-        if num_images and len(self.img_paths) > num_images:
-            self.img_paths = self.img_paths[:num_images]
+# class Middlebury(data.Dataset):
+#     def __init__(self, dataset_dir, num_images=None):
+#         self.dataset_dir = dataset_dir
+#         self.img_paths = glob.glob(f"{dataset_dir}/*")
+#         random.shuffle(self.img_paths)
+#         if num_images and len(self.img_paths) > num_images:
+#             self.img_paths = self.img_paths[:num_images]
 
-    def __len__(self):
-        return len(self.img_paths)
+#     def __len__(self):
+#         return len(self.img_paths)
 
-    def __getitem__(self, idx):
-        img0_path = f"{self.img_paths[idx]}/im0.png"
-        img1_path = f"{self.img_paths[idx]}/im1.png"
-        disp0_path = f"{self.img_paths[idx]}/disp0.pfm"
-        disp1_path = f"{self.img_paths[idx]}/disp1.pfm"
+#     def __getitem__(self, idx):
+#         img0_path = f"{self.img_paths[idx]}/im0.png"
+#         img1_path = f"{self.img_paths[idx]}/im1.png"
+#         disp0_path = f"{self.img_paths[idx]}/disp0.pfm"
+#         disp1_path = f"{self.img_paths[idx]}/disp1.pfm"
 
-        img0, img_size = utils.get_img(img0_path)
-        img1, _ = utils.get_img(img1_path)
-        disp0, disp_size = utils.get_disparity(disp0_path)
-        disp1, _ = utils.get_disparity(disp1_path)
+#         img0, img_size = utils.get_img(img0_path)
+#         img1, _ = utils.get_img(img1_path)
+#         disp0, disp_size = utils.get_disparity(disp0_path)
+#         disp1, _ = utils.get_disparity(disp1_path)
 
-        if img_size != disp_size:
-            disp0 = T.Resize(img_size)(disp0)
-            disp1 = T.Resize(img_size)(disp1)
+#         if img_size != disp_size:
+#             disp0 = T.Resize(img_size)(disp0)
+#             disp1 = T.Resize(img_size)(disp1)
 
-        return img0, img1, disp0, disp1
+#         return img0, img1, disp0, disp1
 
 
 class DIML(data.Dataset):
     def __init__(self, dataset_dir, num_images=None, load=False):
         self.dataset_dir = dataset_dir
-        self.img_paths = glob.glob(f"{dataset_dir}/train/HR/outleft/*")
+        self.img_paths = glob.glob(f"{dataset_dir}/train/LR/outleft/*")
         random.shuffle(self.img_paths)
-        with open("DIML_img_paths.pkl", "rb") as fp:
-            self.img_paths = pickle.load(fp)
+        # with open("DIML_img_paths.pkl", "rb") as fp:
+        #     self.img_paths = pickle.load(fp)
         if num_images and len(self.img_paths) > num_images:
             self.img_paths = self.img_paths[:num_images]
 
@@ -218,7 +218,7 @@ class AugmentedDIML(AugmentedDataset):
         return 1505
 
     def __getitem__(self, idx):
-        images_dirs = ["dataA"]
+        images_dirs = ["dataA", "dataB", "dataC"]
         dataset_dir = f"datasets/AugmentedDIML/{images_dirs[int(idx/502)]}"
         random_group = np.random.randint(0, 3)
         random_augment = np.random.randint(0, 12)
