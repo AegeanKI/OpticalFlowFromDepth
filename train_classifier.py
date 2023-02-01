@@ -83,7 +83,6 @@ def read_args():
     parser.add_argument('--use_average_pooling', default=False, type=bool, action=BooleanOptionalAction)
     parser.add_argument('--gpu', type=int)
     parser.add_argument('--dataset')
-    parser.add_argument('--image_size')
     parser.add_argument('--batch_size', default=8, type=int)
     parser.add_argument('--lr', default=0.0002, type=float)
     parser.add_argument('--min_lr', default=0.00002, type=float)
@@ -91,6 +90,7 @@ def read_args():
     parser.add_argument('--max_epoch', default=10000, type=int)
     parser.add_argument('--num_classes', default=4, type=int)
     parser.add_argument('--normalize_dataset', default=True, type=bool, action=BooleanOptionalAction)
+    parser.add_argument('--checkpoints')
         
     args = parser.parse_args()
     return args
@@ -130,29 +130,30 @@ if __name__ == "__main__":
                                # use_pooling=args.use_pooling,
                                use_average_pooling=args.use_average_pooling)
     model.to(device)
+    if args.checkpoints is not None:
     # model.load_state_dict(torch.load("output/models/first.pt"))
     loss_func = CrossEntropyLoss()
     # optimizer = Adam(model.parameters(), lr=lr)
     optimizer = AdamW(model.parameters(), lr=lr, weight_decay=0.0001, eps=1e-8)
 
     test_split = 0.2
-    random_seed = 12345
+    utils.set_seed(12345)
     # random_seed = 23456
     save_to_test = False
 
     if args.dataset == "AugmentedReDWeb":
-        dataset = AugmentedReDWeb(normalize_dataset=args.normalize_dataset, size=args.image_size)
-    elif args.dataset == "AugmentedMiddlebury":
-        dataset = AugmentedMiddlebury(normalize_dataset=args.normalize_dataset, size=args.image_size)
+        if args.batch_size != 1:
+            dataset = AugmentedReDWeb(normalize_dataset=args.normalize_dataset, size=(224, 224))
+        else:
+            dataset = AugmentedReDWeb(normalize_dataset=args.normalize_dataset)
+    # elif args.dataset == "AugmentedMiddlebury":
+    #     dataset = AugmentedMiddlebury(normalize_dataset=args.normalize_dataset, size=(448, 448))
     dataset_size = len(dataset)
     
     indices = list(range(dataset_size))
     split = int(np.floor(test_split * dataset_size))
     
     shuffle_dataset = True
-    if shuffle_dataset:
-        np.random.seed(random_seed)
-        np.random.shuffle(indices)
 
     train_indices, test_indices = indices[split:dataset_size], indices[:split]
     train_sampler = SubsetRandomSampler(train_indices)
@@ -170,15 +171,16 @@ if __name__ == "__main__":
                              sampler=test_sampler)
 
 
-    best_train_acc = 0
     for epoch in range(args.max_epoch):
         total = 0
         correct = 0
+        confusion_matrix = np.zeros((args.num_classes, args.num_classes))
         model.train()
         for batch_idx, (_, _, flow, depth, label) in enumerate(tqdm(train_loader)):
             flow = flow.to(device)
             depth = depth.to(device)
             label = label.to(device)
+            flow = flow * (depth != 100).repeat(1, 2, 1, 1)
             flow_depth = torch.cat((flow, depth), axis=1).float().to(device)
 
             optimizer.zero_grad()
@@ -194,10 +196,14 @@ if __name__ == "__main__":
             total = total + args.batch_size
             correct = correct + (torch.max(predict1, dim=1).indices ==
                                  torch.max(label, dim=1).indices).sum().item()
+
+            for p, l in zip(torch.max(predict1, dim=1).indices, torch.max(label, dim=1).indices):
+                confusion_matrix[p, l] = confusion_matrix[p, l] + 1
             # break
 
         train_acc = correct / total
         print(f"    train accuracy = {correct} / {total} = {correct / total}")
+        print(f"{confusion_matrix = }")
 
         total = 0
         correct = 0
@@ -207,9 +213,9 @@ if __name__ == "__main__":
             flow = flow.to(device)
             depth = depth.to(device)
             label = label.to(device)
+            flow = flow * (depth != 100).repeat(1, 2, 1, 1)
             flow_depth = torch.cat((flow, depth), axis=1).float().to(device)
 
-            optimizer.zero_grad()
             if not args.use_depth_in_classifier:
                 predict1 = model(flow)
             else:
@@ -225,11 +231,9 @@ if __name__ == "__main__":
             # break
         test_acc = correct / total
         print(f"                    test accuracy = {correct} / {total} = {correct / total}")
-        if train_acc >= best_train_acc:
-            best_train_acc = train_acc
-            model_name = type(model).__name__
-            print(f"{confusion_matrix = }")
-            torch.save(model.state_dict(), f"outputs/models/{cur_time}/{train_acc=:.3f}_{test_acc=:.3f}.pt")
+        print(f"{confusion_matrix = }")
+        model_name = type(model).__name__
+        torch.save(model.state_dict(), f"outputs/models/{cur_time}/{train_acc=:.3f}_{test_acc=:.3f}.pt")
         # break
 
 

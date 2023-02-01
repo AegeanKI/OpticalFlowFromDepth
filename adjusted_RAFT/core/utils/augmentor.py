@@ -60,16 +60,15 @@ class FlowAugmentor:
                 y0 = np.random.randint(0, ht)
                 dx = np.random.randint(bounds[0], bounds[1])
                 dy = np.random.randint(bounds[0], bounds[1])
-                img2[y0:y0 + dy, x0:x0 + dx, :] = mean_color
+                img2[y0:y0+dy, x0:x0+dx, :] = mean_color
 
         return img1, img2
 
     def spatial_transform(self, img1, img2, flow, img1_depth):
         # randomly sample scale
         ht, wd = img1.shape[:2]
-
         min_scale = np.maximum(
-            (self.crop_size[0] + 8) / float(ht),
+            (self.crop_size[0] + 8) / float(ht), 
             (self.crop_size[1] + 8) / float(wd))
 
         scale = 2 ** np.random.uniform(self.min_scale, self.max_scale)
@@ -78,10 +77,9 @@ class FlowAugmentor:
         if np.random.rand() < self.stretch_prob:
             scale_x *= 2 ** np.random.uniform(-self.max_stretch, self.max_stretch)
             scale_y *= 2 ** np.random.uniform(-self.max_stretch, self.max_stretch)
-
+        
         scale_x = np.clip(scale_x, min_scale, None)
         scale_y = np.clip(scale_y, min_scale, None)
-        # print(f"{img1_depth.shape = }")
 
         if np.random.rand() < self.spatial_aug_prob:
             # rescale the images
@@ -91,7 +89,6 @@ class FlowAugmentor:
             flow = flow * [scale_x, scale_y]
             img1_depth = cv2.resize(img1_depth, None, fx=scale_x, fy=scale_y, interpolation=cv2.INTER_LINEAR)
             img1_depth = np.expand_dims(img1_depth, 2)
-            # print(f"inside {img1_depth.shape = }")
 
         if self.do_flip:
             if np.random.rand() < self.h_flip_prob: # h-flip
@@ -117,7 +114,6 @@ class FlowAugmentor:
         return img1, img2, flow, img1_depth
 
     def __call__(self, img1, img2, flow, img1_depth):
-        # print(f"{img1_depth.shape = }")
         img1, img2 = self.color_transform(img1, img2)
         img1, img2 = self.eraser_transform(img1, img2)
         img1, img2, flow, img1_depth = self.spatial_transform(img1, img2, flow, img1_depth)
@@ -126,7 +122,6 @@ class FlowAugmentor:
         img2 = np.ascontiguousarray(img2)
         flow = np.ascontiguousarray(flow)
         img1_depth = np.ascontiguousarray(img1_depth)
-        # print(f"{img1_depth.shape = }")
 
         return img1, img2, flow, img1_depth
 

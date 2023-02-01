@@ -63,7 +63,8 @@ def get_disparity(path):
 
     disp[disp == np.inf] = 0
     # disp = cv2.normalize(disp, None, 0, 255, cv2.NORM_MINMAX)
-    disp = disp / 255
+    disp = disp * 63 / 255
+    # disp = 255 / disp
     # .astype(np.uint8)
     h, w = disp.shape
     disp = torch.from_numpy(disp).unsqueeze(0)
@@ -116,6 +117,7 @@ def normalize_depth(depth):
 
 def fix_warped_depth(depth):
     depth[depth == 0] = 100
+    depth[depth > 99.5] = 100
     return depth
 
 def color_flow(flow):

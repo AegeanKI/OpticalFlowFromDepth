@@ -13,7 +13,7 @@ import os.path as osp
 
 from utils import frame_utils
 from utils.augmentor import FlowAugmentor, SparseFlowAugmentor
-from my_dataloader import AugmentedReDWeb
+from my_dataloader import AugmentedReDWeb, AugmentedDIML
 
 class FlowDataset(data.Dataset):
     def __init__(self, aug_params=None, sparse=False):
@@ -76,9 +76,9 @@ class FlowDataset(data.Dataset):
         # print(f"{flow.shape = }")
         if self.augmentor is not None:
             if self.sparse:
-                img1, img2, flow, valid = self.augmentor(img1, img2, flow, valid)
+                img1, img2, flow, valid = self.augmentor(img1=img1, img2=img2, flow=flow, valid=valid)
             else:
-                img1, img2, flow = self.augmentor(img1, img2, flow)
+                img1, img2, flow = self.augmentor(img1=img1, img2=img2, flow=flow)
 
         img1 = torch.from_numpy(img1).permute(2, 0, 1).float()
         img2 = torch.from_numpy(img2).permute(2, 0, 1).float()
@@ -93,6 +93,7 @@ class FlowDataset(data.Dataset):
             valid = (flow[0].abs() < 1000) & (flow[1].abs() < 1000)
 
         return img1, img2, flow, valid.float()
+        # return img1, img2, flow, torch.zeros(1), valid.float(), torch.zeros(1)
 
 
     def __rmul__(self, v):
@@ -200,52 +201,62 @@ class HD1K(FlowDataset):
 
             seq_ix += 1
 
-class RAFTAugmentedReDWeb(FlowDataset):
+class RAFTAugmentedDataset(FlowDataset):
     def __init__(self, aug_params=None, split='training'):
-        super(RAFTAugmentedReDWeb, self).__init__(aug_params)
+        super(RAFTAugmentedDataset, self).__init__(aug_params)
 
-        h, w = aug_params['crop_size']
-        self.augmentedredweb = AugmentedReDWeb(normalize_dataset=False, size=(h + 1, w + 1))
+        self.augmenteddataset = None
 
     def __len__(self):
-        return len(self.augmentedredweb)
+        return len(self.augmenteddataset)
 
     def __getitem__(self, idx):
-        img1, img2, flow, img1_depth, label = self.augmentedredweb.__getitem__(idx)
+        img1, img2, flow, img1_depth, label = self.augmenteddataset.__getitem__(idx)
         valid = None
         img1 = img1.permute(1, 2, 0).numpy().astype(np.uint8)
         img2 = img2.permute(1, 2, 0).numpy().astype(np.uint8)
         flow = flow.permute(1, 2, 0).numpy()
         img1_depth = img1_depth.permute(1, 2, 0).numpy()
-        # print(f"{img1.shape = }")
-        # print(f"{flow.shape = }")
-        # print(f"{img1_depth.shape = }")
         if self.augmentor is not None:
             if self.sparse:
-                img1, img2, flow, valid = self.augmentor(img1, img2, flow, valid)
+                img1, img2, flow, valid = self.augmentor(img1=img1, img2=img2, flow=flow, valid=valid)
             else:
-                img1, img2, flow, img1_depth = self.augmentor(img1, img2, flow, img1_depth)
+                img1, img2, flow, img1_depth = self.augmentor(img1=img1, img2=img2, flow=flow, img1_depth=img1_depth)
             
 
         img1 = torch.from_numpy(img1).permute(2, 0, 1).float()
         img2 = torch.from_numpy(img2).permute(2, 0, 1).float()
         flow = torch.from_numpy(flow).permute(2, 0, 1).float()
-        # print(f"{img1_depth.shape = }")
         img1_depth = torch.from_numpy(img1_depth).permute(2, 0, 1).float()
-
-        # print(f"{img1.shape = }")
-        # print(f"{flow.shape = }")
-        # print(f"{img1_depth.shape = }")
-        # print(f"=======================")
 
         if valid is not None:
             valid = torch.from_numpy(valid)
         else:
             valid = (flow[0].abs() < 1000) & (flow[1].abs() < 1000)
 
-        valid = valid & (img1_depth != 100)
+        valid = valid & (img1_depth[0] != 100)
 
         return img1, img2, flow, img1_depth, valid.float(), label
+
+
+class RAFTAugmentedReDWeb(RAFTAugmentedDataset):
+    def __init__(self, aug_params=None, split='training'):
+        super(RAFTAugmentedReDWeb, self).__init__(aug_params)
+        
+        self.augmenteddataset = AugmentedReDWeb(normalize_dataset=False, size=(384, 512))
+        # if aug_params:
+        #     h, w = aug_params['crop_size']
+        #     self.augmenteddataset = AugmentedReDWeb(normalize_dataset=False, size=(h + 1, w + 1))
+        # else:
+        #     self.augmenteddataset = AugmentedReDWeb(normalize_dataset=False)
+
+class RAFTAugmentedDIML(RAFTAugmentedDataset):
+    def __init__(self, aug_params=None, split='training'):
+        super(RAFTAugmentedDIML, self).__init__(aug_params)
+        
+        self.augmenteddataset = AugmentedDIML(normalize_dataset=False)
+        # self.augmenteddataset = AugmentedDIML(normalize_dataset=False, size=(512, 1382))
+
 
 
 def fetch_dataloader(args, TRAIN_DS='C+T+K+S+H'):
@@ -283,6 +294,11 @@ def fetch_dataloader(args, TRAIN_DS='C+T+K+S+H'):
         print(f"{args = }")
         aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
         train_dataset = RAFTAugmentedReDWeb(aug_params, split='training')
+
+    elif args.stage == "augmenteddiml":
+        print(f"{args = }")
+        aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
+        train_dataset = RAFTAugmentedDIML(aug_params, split='training')
 
     train_loader = data.DataLoader(train_dataset, batch_size=args.batch_size, 
         pin_memory=False, shuffle=True, num_workers=4, drop_last=True)

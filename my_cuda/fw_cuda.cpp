@@ -1,4 +1,5 @@
 #include <torch/extension.h>
+#include <c10/cuda/CUDAGuard.h>
 #include <vector>
 
 std::vector<torch::Tensor> forward_warping_cuda(
@@ -22,6 +23,7 @@ std::vector<torch::Tensor> forward_warping(
     CHECK_INPUT(safe_y);
     CHECK_INPUT(safe_x);
     CHECK_INPUT(depth);
+    const at::cuda::OptionalCUDAGuard device_guard(device_of(obj));
     return forward_warping_cuda(obj, safe_y, safe_x, depth, same_range);
 }
 

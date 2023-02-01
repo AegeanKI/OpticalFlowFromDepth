@@ -149,7 +149,7 @@ def train(args):
     model.cuda()
     model.train()
 
-    if args.stage != 'chairs' and args.stage != 'augmentedredweb':
+    if args.stage != 'chairs' and args.stage != 'augmentedredweb' and args.stage != 'augmenteddiml':
         model.module.freeze_bn()
 
     # =====
@@ -165,7 +165,6 @@ def train(args):
         classifier_checkpoints_name = f"{train_acc=}_{test_acc=}.pt"
         with open(f"{classifier_checkpoints_dir}/args.txt") as f:
             classifier_args = json.load(f)
-        print(f"{classifier_args = }")
         classifier = RAFTClassifier(device=args.gpus[0],
                                     output_dim=classifier_args["output_dim"],
                                     dropout=classifier_args["dropout"],
@@ -258,12 +257,12 @@ def train(args):
                 logger.write_dict(results)
                 
                 model.train()
-                if args.stage != 'chairs' and args.stage != 'augmentedredweb':
+                if args.stage != 'chairs' and args.stage != 'augmentedredweb' and args.stage != 'augmenteddiml':
                     model.module.freeze_bn()
             
             total_steps += 1
 
-            if total_steps > args.num_steps:
+            if total_steps > args.num_steps or total_steps > args.early_stop:
                 should_keep_training = False
                 break
         #     break
@@ -308,11 +307,25 @@ if __name__ == '__main__':
     parser.add_argument('--classify_loss_weight_increase', type=float)
     parser.add_argument('--max_classify_loss_weight', type=float)
     parser.add_argument('--min_classify_loss_weight', type=float)
+    parser.add_argument('--early_stop', default=1e9, type=int)
 
     args = parser.parse_args()
 
-    torch.manual_seed(1234)
-    np.random.seed(1234)
+    seed = 1234
+
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
+    try:
+        random.seed(seed)
+    except:
+        pass
+    try:
+        loader.sampler.generator.manual_seed(seed)
+    except:
+        pass
 
     if not os.path.isdir('checkpoints'):
         os.mkdir('checkpoints')

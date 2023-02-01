@@ -17,7 +17,7 @@ __all__ = ["BackprojectDepth", "Project3D", "transformation_from_parameters"]
 class BackprojectDepth(nn.Module):
     """Layer to transform a depth image into a point cloud
     """
-    def __init__(self, b, h, w):
+    def __init__(self, b, h, w, device):
         super(BackprojectDepth, self).__init__()
 
         self.b = b
@@ -25,9 +25,9 @@ class BackprojectDepth(nn.Module):
         self.w = w
 
         meshgrid = torch.meshgrid(torch.arange(self.w), torch.arange(self.h), indexing='xy')
-        self.id_coords = torch.stack(meshgrid, axis=0).type(torch.float32).to("cuda")
+        self.id_coords = torch.stack(meshgrid, axis=0).type(torch.float32).to(device)
 
-        self.ones = torch.ones(self.b, 1, self.h * self.w, dtype=torch.float32).to("cuda")
+        self.ones = torch.ones(self.b, 1, self.h * self.w, dtype=torch.float32).to(device)
 
         self.pix_coords = torch.unsqueeze(torch.stack(
             [self.id_coords[0].view(-1), self.id_coords[1].view(-1)], 0), 0)

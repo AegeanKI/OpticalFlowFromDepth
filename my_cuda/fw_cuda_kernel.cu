@@ -204,7 +204,5 @@ std::vector<torch::Tensor> forward_warping_cuda(
             same_range);
     }));
 
-
-
     return {output, collision};
 }

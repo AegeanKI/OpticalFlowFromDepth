@@ -8,7 +8,7 @@ import fw_cuda
 # torch.manual_seed(42)
 
 class FW(nn.Module):
-    def __init__(self, device="cuda"):
+    def __init__(self, device=None):
         super().__init__()
         self.device = device
 
@@ -20,7 +20,7 @@ class FW(nn.Module):
         obj = obj.unsqueeze(0)
         depth = depth.unsqueeze(0)
 
-        flow[((flow[:, 0:1] == 0) & (flow[:, 1:2] == 0)).repeat(1, 2, 1, 1)] = 1000
+        # flow[((flow[:, 0:1] == 0) & (flow[:, 1:2] == 0)).repeat(1, 2, 1, 1)] = 1000
 
         _, _, h, w = obj.shape
 
