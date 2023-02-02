@@ -78,7 +78,7 @@ class FlowDataset(data.Dataset):
             if self.sparse:
                 img1, img2, flow, valid = self.augmentor(img1=img1, img2=img2, flow=flow, valid=valid)
             else:
-                img1, img2, flow = self.augmentor(img1=img1, img2=img2, flow=flow)
+                img1, img2, flow, _ = self.augmentor(img1=img1, img2=img2, flow=flow, img1_depth=None)
 
         img1 = torch.from_numpy(img1).permute(2, 0, 1).float()
         img2 = torch.from_numpy(img2).permute(2, 0, 1).float()
@@ -92,8 +92,8 @@ class FlowDataset(data.Dataset):
         else:
             valid = (flow[0].abs() < 1000) & (flow[1].abs() < 1000)
 
-        return img1, img2, flow, valid.float()
-        # return img1, img2, flow, torch.zeros(1), valid.float(), torch.zeros(1)
+        # return img1, img2, flow, valid.float()
+        return img1, img2, flow, torch.zeros(1), valid.float(), torch.zeros(1)
 
 
     def __rmul__(self, v):

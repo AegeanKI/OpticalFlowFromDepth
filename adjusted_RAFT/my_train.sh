@@ -168,8 +168,8 @@ mkdir -p checkpoints
 
 # Feb 1
 # check AD_s + FT
-name=raft-ad-s-c-1e5-1
-gpu=6
+name=raft-ad-s-noc
+gpu=4
 
 python -u train.py --name $name-t --stage things \
     --validation kitti \

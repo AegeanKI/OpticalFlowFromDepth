@@ -99,13 +99,13 @@ NUM_GPUS=4
 # 2>&1 | tee -a ${CHECKPOINT_DIR}/train.log
 
 # Feb 1
-# gmflow + FC + ad_s
+# gmflow + ad_s
 
-name=gmflow-fc-ad-s-noc
-port=9988
+name=gmflow-ad-s-c-1e5-1
+port=9989
 checkpoint_dir=checkpoints/$name && \
 mkdir -p ${checkpoint_dir} && \
-CUDA_VISIBLE_DEVICES=0,1,2,3 python -m torch.distributed.launch --nproc_per_node=${NUM_GPUS} --master_port=${port} main.py \
+CUDA_VISIBLE_DEVICES=4,5,6,7 python -m torch.distributed.launch --nproc_per_node=${NUM_GPUS} --master_port=${port} main.py \
 --launcher pytorch \
 --checkpoint_dir ${checkpoint_dir} \
 --stage augmenteddiml \
@@ -119,12 +119,12 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python -m torch.distributed.launch --nproc_per_node
 --val_freq 1000 \
 --save_ckpt_freq 1000 \
 --num_steps 100000 \
+--add_classifier \
+--classifier_checkpoint_timestamp 1672944585.6048822 \
+--classifier_checkpoint_train_acc 0.675 \
+--classifier_checkpoint_test_acc 0.804 \
+--classify_loss_weight_init 1 \
+--classify_loss_weight_increase -0.00001 \
+--max_classify_loss_weight 1 \
+--min_classify_loss_weight 0 \
 2>&1 | tee -a ${checkpoint_dir}/train.log
-# --add_classifier \
-# --classifier_checkpoint_timestamp 1672944585.6048822 \
-# --classifier_checkpoint_train_acc 0.675 \
-# --classifier_checkpoint_test_acc 0.804 \
-# --classify_loss_weight_init 1 \
-# --classify_loss_weight_increase -0.00001 \
-# --max_classify_loss_weight 1 \
-# --min_classify_loss_weight 0 \
