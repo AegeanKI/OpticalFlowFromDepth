@@ -11,7 +11,7 @@ import os.path as osp
 
 from utils import frame_utils
 from data.transforms import FlowAugmentor, SparseFlowAugmentor
-from data.my_dataloader import AugmentedReDWeb, AugmentedDIML
+from data.my_dataloader import AugmentedReDWeb, AugmentedDIML, FlowDIML
 
 class FlowDataset(data.Dataset):
     def __init__(self, aug_params=None, sparse=False,
@@ -308,17 +308,23 @@ class RAFTAugmentedDataset(FlowDataset):
 class RAFTAugmentedReDWeb(RAFTAugmentedDataset):
     def __init__(self, aug_params=None, split='training'):
         super().__init__(aug_params, split)
-        if aug_params:
-            h, w = aug_params['crop_size']
-            self.augmented_dataset = AugmentedReDWeb(normalize_dataset=False, size=(h + 1, w + 1))
-        else:
-            self.augmented_dataset = AugmentedReDWeb(normalize_dataset=False, size=None)
+        # if aug_params:
+        #     h, w = aug_params['crop_size']
+        #     self.augmented_dataset = AugmentedReDWeb(normalize_dataset=False, size=(h + 1, w + 1))
+        # else:
+        self.augmented_dataset = AugmentedReDWeb(normalize_dataset=False, size=None)
 
 class RAFTAugmentedDIML(RAFTAugmentedDataset):
     def __init__(self, aug_params=None, split='training'):
         super().__init__(aug_params, split)
             
         self.augmented_dataset = AugmentedDIML(normalize_dataset=False, size=None)
+
+class RAFTFlowDIML(RAFTAugmentedDataset):
+    def __init__(self, aug_params=None, split='training'):
+        super().__init__(aug_params, split)
+            
+        self.augmented_dataset = FlowDIML(normalize_dataset=False, size=None)
 
 def build_train_dataset(args):
     """ Create the data loader for the corresponding training set """
@@ -363,10 +369,14 @@ def build_train_dataset(args):
         train_dataset = RAFTAugmentedReDWeb(aug_params, split='training')
     
     elif args.stage == "augmenteddiml":
-        # aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
+        aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
         # aug_params = {'crop_size': args.image_size, 'min_scale': -0.4, 'max_scale': 0.8, 'do_flip': True}
-        aug_params = {'crop_size': args.image_size, 'min_scale': -0.2, 'max_scale': 0.4, 'do_flip': True}
+        # aug_params = {'crop_size': args.image_size, 'min_scale': -0.2, 'max_scale': 0.4, 'do_flip': True}
         train_dataset = RAFTAugmentedDIML(aug_params, split='training')
+    
+    elif args.stage == "flowdiml":
+        aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
+        train_dataset = RAFTFlowDIML(aug_params, split='training')
 
 
     else:
