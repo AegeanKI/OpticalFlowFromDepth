@@ -124,7 +124,6 @@ def get_args_parser():
     parser.add_argument('--classify_loss_weight_increase', type=float)
     parser.add_argument('--max_classify_loss_weight', type=float)
     parser.add_argument('--min_classify_loss_weight', type=float)
-    parser.add_argument('--early_stop', type=int, default=1e9)
 
     return parser
 
@@ -420,7 +419,7 @@ def main(args):
     epoch = start_epoch
     print('Start training')
 
-    while total_steps < args.num_steps and total_steps < args.early_stop:
+    while total_steps < args.num_steps:
         model.train()
 
         # mannual change random seed for shuffling every epoch
@@ -475,14 +474,14 @@ def main(args):
             for param in model_without_ddp.parameters():
                 param.grad = None
 
-            loss.backward()
+            # loss.backward()
 
-            # Gradient clipping
-            torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
+            # # Gradient clipping
+            # torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
 
-            optimizer.step()
+            # optimizer.step()
 
-            lr_scheduler.step()
+            # lr_scheduler.step()
 
             if args.local_rank == 0:
                 logger.push(metrics)

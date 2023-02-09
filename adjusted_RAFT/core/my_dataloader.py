@@ -218,15 +218,16 @@ class AugmentedDIML(AugmentedDataset):
         super().__init__(normalize_dataset, size)
 
     def __len__(self):
-        return 1505
+        # return 1505
+        return 1505 * 2
 
     def __getitem__(self, idx):
         images_dirs = ["dataA", "dataB", "dataC"]
-        dataset_dir = f"datasets/AugmentedDIML/{images_dirs[int(idx/502)]}"
+        dataset_dir = f"datasets/AugmentedDIML/{images_dirs[int((idx % 1505)/502)]}"
         random_group = np.random.randint(0, 3)
         random_augment = np.random.randint(0, 12)
         random_set = np.random.randint(1, 3)
         npz_filename = f"{dataset_dir}/{idx}/{random_group}_{random_augment}_{random_set}.npz"
-        group_npz_filename = f"{dataset_dir}/{idx + 1505}/group.npz"
-        # group_npz_filename = f"{dataset_dir}/{idx}/group.npz"
+        # group_npz_filename = f"{dataset_dir}/{idx + 1505}/group.npz"
+        group_npz_filename = f"{dataset_dir}/{idx}/group.npz"
         return self.getitem_from_npz(npz_filename, group_npz_filename, random_group, idx)

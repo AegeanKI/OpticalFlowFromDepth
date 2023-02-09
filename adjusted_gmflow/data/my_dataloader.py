@@ -136,19 +136,16 @@ class AugmentedDataset(data.Dataset):
                 T.ToTensor(),
             ])
 
-    def getitem_from_npz(self, npz_filename, group_npz_filename, random_group, idx):
+    def getitem_from_npz(self, npz_filename, group_npz_filename, random_group):
         # print(f"{npz_filename = }, {group_npz_filename = }")
-        try:
-            npz_file = np.load(npz_filename)
-            augment_img = npz_file["augment_img"]
-            augment_flow_type = npz_file["augment_flow_type"]
-            _, h, w = npz_file["img_depth_flow"].shape
-            img_depth_flow = npz_file["img_depth_flow"]
+        npz_file = np.load(npz_filename)
+        augment_img = npz_file["augment_img"]
+        augment_flow_type = npz_file["augment_flow_type"]
+        _, h, w = npz_file["img_depth_flow"].shape
+        img_depth_flow = npz_file["img_depth_flow"]
 
-            group_npz_file = np.load(group_npz_filename)
-            group_img_depth_flow = group_npz_file["img_depth_flow"]
-        except:
-            return self.__getitem__((idx + 1) % self.__len__())
+        group_npz_file = np.load(group_npz_filename)
+        group_img_depth_flow = group_npz_file["img_depth_flow"]
         if random_group == 0:
             img0 = group_img_depth_flow[0:3]
             img0_depth = group_img_depth_flow[3:4]
@@ -189,12 +186,6 @@ class AugmentedDataset(data.Dataset):
         # label = utils.one_hot(label_type, num_classes)
         label = torch.zeros(num_classes)
         label[label_type] = 1
-        del npz_file
-        del augment_img
-        del augment_flow_type
-        del group_npz_file
-        del group_img_depth_flow
-        del img_depth_flow
         return img0, img1, flow, img0_depth, label
 
 
@@ -216,7 +207,7 @@ class AugmentedReDWeb(AugmentedDataset):
         # idx = idx + 3600
         npz_filename = f"{dataset_dir}/{idx}/{random_group}_{random_augment}_{random_set}.npz"
         group_npz_filename = f"{dataset_dir}/{idx}/group.npz"
-        return self.getitem_from_npz(npz_filename, group_npz_filename, random_group, idx=idx)
+        return self.getitem_from_npz(npz_filename, group_npz_filename, random_group)
 
 
 class AugmentedDIML(AugmentedDataset):
@@ -233,6 +224,5 @@ class AugmentedDIML(AugmentedDataset):
         random_augment = np.random.randint(0, 12)
         random_set = np.random.randint(1, 3)
         npz_filename = f"{dataset_dir}/{idx}/{random_group}_{random_augment}_{random_set}.npz"
-        group_npz_filename = f"{dataset_dir}/{idx + 1505}/group.npz"
-        # group_npz_filename = f"{dataset_dir}/{idx}/group.npz"
-        return self.getitem_from_npz(npz_filename, group_npz_filename, random_group, idx=idx)
+        group_npz_filename = f"{dataset_dir}/{idx}/group.npz"
+        return self.getitem_from_npz(npz_filename, group_npz_filename, random_group)
