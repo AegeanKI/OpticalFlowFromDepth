@@ -363,7 +363,8 @@ def build_train_dataset(args):
         train_dataset = RAFTAugmentedReDWeb(aug_params, split='training')
     
     elif args.stage == "augmenteddiml":
-        aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
+        # aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
+        aug_params = {'crop_size': args.image_size, 'min_scale': -0.4, 'max_scale': 0.8, 'do_flip': True}
         train_dataset = RAFTAugmentedDIML(aug_params, split='training')
 
 
