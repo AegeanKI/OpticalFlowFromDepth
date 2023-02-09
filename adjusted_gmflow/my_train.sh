@@ -98,14 +98,15 @@ NUM_GPUS=4
 # --num_steps 800000 \
 # 2>&1 | tee -a ${CHECKPOINT_DIR}/train.log
 
-# Feb 1
+# Feb 1, 6
 # gmflow + ad_s
 
 name=gmflow-ad-s-c-1e5-1
 port=9989
 checkpoint_dir=checkpoints/$name && \
 mkdir -p ${checkpoint_dir} && \
-CUDA_VISIBLE_DEVICES=4,5,6,7 python -m torch.distributed.launch --nproc_per_node=${NUM_GPUS} --master_port=${port} main.py \
+CUDA_VISIBLE_DEVICES=4,5,6,7 \
+python -m torch.distributed.launch --nproc_per_node=${NUM_GPUS} --master_port=${port} main.py \
 --launcher pytorch \
 --checkpoint_dir ${checkpoint_dir} \
 --stage augmenteddiml \
