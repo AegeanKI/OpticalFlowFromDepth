@@ -114,7 +114,7 @@ class FlowDataset(data.Dataset):
 
             return img1, img2, flow, valid.float(), noc_valid.float()
 
-        return img1, img2, flow, torch.zeros(1), valid.float(), torch.zeros(1)
+        return img1, img2, flow, valid.float()
 
     def __rmul__(self, v):
         self.flow_list = v * self.flow_list
@@ -317,8 +317,8 @@ class RAFTAugmentedReDWeb(RAFTAugmentedDataset):
 class RAFTAugmentedDIML(RAFTAugmentedDataset):
     def __init__(self, aug_params=None, split='training'):
         super().__init__(aug_params, split)
-        
-        self.augmented_dataset = AugmentedDIML(normalize_dataset=False)
+            
+        self.augmented_dataset = AugmentedDIML(normalize_dataset=False, size=None)
 
 def build_train_dataset(args):
     """ Create the data loader for the corresponding training set """
