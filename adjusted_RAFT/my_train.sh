@@ -224,22 +224,22 @@ mkdir -p checkpoints
 
 # Feb 4
 # check test AR
-name=raft-test-ar-s-c-2e5-1
-gpu=3
+# name=raft-test-ar-s-c-2e5-1
+# gpu=3
 
-python -u train.py --name ${name} --stage test-augmentedredweb \
-    --validation kitti \
-    --gpus ${gpu} --num_steps 120000 --batch_size 8 --lr 0.00025 --val_freq 1000 \
-    --image_size 368 496 --wdecay 0.0001 \
-    --add_classifier \
-    --classifier_checkpoint_timestamp 1672944585.6048822 \
-    --classifier_checkpoint_train_acc 0.675 \
-    --classifier_checkpoint_test_acc 0.804 \
-    --classify_loss_weight_init 1 \
-    --classify_loss_weight_increase -0.00002 \
-    --max_classify_loss_weight 1 \
-    --min_classify_loss_weight 0 \
-    --mixed_precision
+# python -u train.py --name ${name} --stage test-augmentedredweb \
+#     --validation kitti \
+#     --gpus ${gpu} --num_steps 120000 --batch_size 8 --lr 0.00025 --val_freq 1000 \
+#     --image_size 368 496 --wdecay 0.0001 \
+#     --add_classifier \
+#     --classifier_checkpoint_timestamp 1672944585.6048822 \
+#     --classifier_checkpoint_train_acc 0.675 \
+#     --classifier_checkpoint_test_acc 0.804 \
+#     --classify_loss_weight_init 1 \
+#     --classify_loss_weight_increase -0.00002 \
+#     --max_classify_loss_weight 1 \
+#     --min_classify_loss_weight 0 \
+#     --mixed_precision
 
 # Feb 8
 # check test_AR
@@ -261,8 +261,44 @@ python -u train.py --name ${name} --stage test-augmentedredweb \
 #     --min_classify_loss_weight 0 \
 #     --mixed_precision
 
+# Feb 9
+# check test AR (>350, >350), resize (480, 640), 1698 images
+# name=raft-test-ar+s-c-2e5-1
+# gpu=3
+
+# python -u train.py --name ${name} --stage test-augmentedredweb \
+#     --validation kitti \
+#     --gpus ${gpu} --num_steps 120000 --batch_size 8 --lr 0.00025 --val_freq 1000 \
+#     --image_size 368 496 --wdecay 0.0001 \
+#     --add_classifier \
+#     --classifier_checkpoint_timestamp 1672944585.6048822 \
+#     --classifier_checkpoint_train_acc 0.675 \
+#     --classifier_checkpoint_test_acc 0.804 \
+#     --classify_loss_weight_init 1 \
+#     --classify_loss_weight_increase -0.00002 \
+#     --max_classify_loss_weight 1 \
+#     --min_classify_loss_weight 0 \
+#     --mixed_precision
 
 
+# Feb 9
+# check test FR (>350, >350), resize (480, 640), 1698 images, FD
+name=raft-test-fd+s-c-2e5-1
+gpu=7
+
+python -u train.py --name ${name} --stage flowdiml \
+    --validation kitti \
+    --gpus ${gpu} --num_steps 120000 --batch_size 8 --lr 0.00025 --val_freq 1000 \
+    --image_size 368 496 --wdecay 0.0001 \
+    --add_classifier \
+    --classifier_checkpoint_timestamp 1672944585.6048822 \
+    --classifier_checkpoint_train_acc 0.675 \
+    --classifier_checkpoint_test_acc 0.804 \
+    --classify_loss_weight_init 1 \
+    --classify_loss_weight_increase -0.00002 \
+    --max_classify_loss_weight 1 \
+    --min_classify_loss_weight 0 \
+    --mixed_precision
 
 
 
