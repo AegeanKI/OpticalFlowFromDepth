@@ -136,16 +136,19 @@ class AugmentedDataset(data.Dataset):
                 T.ToTensor(),
             ])
 
-    def getitem_from_npz(self, npz_filename, group_npz_filename, random_group):
+    def getitem_from_npz(self, npz_filename, group_npz_filename, random_group, idx):
         # print(f"{npz_filename = }, {group_npz_filename = }")
-        npz_file = np.load(npz_filename)
-        augment_img = npz_file["augment_img"]
-        augment_flow_type = npz_file["augment_flow_type"]
-        _, h, w = npz_file["img_depth_flow"].shape
-        img_depth_flow = npz_file["img_depth_flow"]
+        try:
+            npz_file = np.load(npz_filename)
+            augment_img = npz_file["augment_img"]
+            augment_flow_type = npz_file["augment_flow_type"]
+            _, h, w = npz_file["img_depth_flow"].shape
+            img_depth_flow = npz_file["img_depth_flow"]
 
-        group_npz_file = np.load(group_npz_filename)
-        group_img_depth_flow = group_npz_file["img_depth_flow"]
+            group_npz_file = np.load(group_npz_filename)
+            group_img_depth_flow = group_npz_file["img_depth_flow"]
+        except:
+            return self.__getitem__((idx + 1) % self.__len__())
         if random_group == 0:
             img0 = group_img_depth_flow[0:3]
             img0_depth = group_img_depth_flow[3:4]
