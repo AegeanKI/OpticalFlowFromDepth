@@ -126,7 +126,7 @@ def validate_chairs(model,
     print('Number of validation image pairs: %d' % len(val_dataset))
 
     for val_id in range(len(val_dataset)):
-        image1, image2, flow_gt, _, _, _ = val_dataset[val_id]
+        image1, image2, flow_gt, _ = val_dataset[val_id]
 
         image1 = image1[None].cuda()
         image2 = image2[None].cuda()
@@ -216,7 +216,7 @@ def validate_things(model,
             s40plus_list = []
 
         for val_id in range(len(val_dataset)):
-            image1, image2, flow_gt, _, valid_gt, _ = val_dataset[val_id]
+            image1, image2, flow_gt, valid_gt = val_dataset[val_id]
             image1 = image1[None].cuda()
             image2 = image2[None].cuda()
 
@@ -326,7 +326,7 @@ def validate_sintel(model,
                 in_image_valid = compute_out_of_boundary_mask(flow_gt.unsqueeze(0)).squeeze(0)  # [H, W]
 
             else:
-                image1, image2, flow_gt, _, _, _ = val_dataset[val_id]
+                image1, image2, flow_gt, _ = val_dataset[val_id]
 
             image1 = image1[None].cuda()
             image2 = image2[None].cuda()
@@ -460,7 +460,7 @@ def validate_kitti(model,
             s40plus_valid_samples = 0
 
     for val_id in range(len(val_dataset)):
-        image1, image2, flow_gt, _, valid_gt, _ = val_dataset[val_id]
+        image1, image2, flow_gt, valid_gt = val_dataset[val_id]
         image1 = image1[None].cuda()
         image2 = image2[None].cuda()
 

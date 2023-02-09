@@ -393,13 +393,15 @@ class Plausible():
 class Convert():
     @staticmethod
     def depth_to_disparity(depth):
-        _, _, w = depth.shape
-        s = utils.get_random(175, 50, random_sign=False)
+        # _, _, w = depth.shape
+        # s = utils.get_random(175, 50, random_sign=False)
        
-        disparity = s * (1 / depth) * depth.max()
+        # disparity = s * (1 / depth) * depth.max()
         B, f = Plausible.B(), Plausible.f()
-        disparity = B * f / depth - 0.25
-        del s
+        # disparity = B * f / depth - 0.25
+        disparity = B * f / depth
+        # del s
+        del B, f
         return disparity
 
     @staticmethod
@@ -507,7 +509,7 @@ class PreprocessPlusAugment(nn.Module):
     # def forward(self, img0, img0_depth, output_dir):
     def forward(self, datas, output_dir, is_stereo=False):
         start_preprocess_time = time.time()
-        # print(f"{output_dir = }")
+        print(f"{output_dir = }")
 
         if not is_stereo:
             img0, img0_depth = datas
@@ -740,8 +742,8 @@ if __name__ == "__main__":
         output_dirs = ["outputsD/test_ReDWeb_V1", "outputsB/test_ReDWeb_V1", "outputsC/test_ReDWeb_V1"] 
 
 
-    EVERY_IMAGES_CHANGE_OUTPUT_DIR = len(dataset) / 3
-    # EVERY_IMAGES_CHANGE_OUTPUT_DIR = (1698 + 2) / 3
+    # EVERY_IMAGES_CHANGE_OUTPUT_DIR = len(dataset) / 3
+    EVERY_IMAGES_CHANGE_OUTPUT_DIR = int((1698 + 2) / 3)
     # device = "cuda:1" if torch.cuda.is_available() else "cpu"
     device = f"cuda:{args.gpu}"
 
@@ -755,7 +757,7 @@ if __name__ == "__main__":
 
     print(f"{len(dataset) = }, {is_stereo = }, {start = }, {end = }")
 
-    # resize = T.Resize((480, 640))
+    resize = T.Resize((480, 640))
 
     count = 0
     for epoch_idx in range(args.max_epoch):
@@ -763,26 +765,26 @@ if __name__ == "__main__":
             print(f"{img_idx + 1} / {len(dataset)}: ")
             utils.set_seed(12345 + img_idx + epoch_idx * len(dataset))
             datas = dataset[img_idx]
-            # img0, img0_depth = datas
-            # _, h, w = img0.shape
-            # if h < 350 or w < 350:
-            #     continue
+            img0, img0_depth = datas
+            _, h, w = img0.shape
+            if h < 350 or w < 350:
+                continue
 
-            # img0 = resize(img0)
-            # img0_depth = resize(img0_depth)
+            img0 = resize(img0)
+            img0_depth = resize(img0_depth)
 
-            # datas = (img0, img0_depth)
+            datas = (img0, img0_depth)
 
-            # print(f"{count = }")
-            # # img_idx = count + 837
+            print(f"{count = }")
+            img_idx = count + 1264
             # img_idx = count
 
             output_dir = output_dirs[int(img_idx / EVERY_IMAGES_CHANGE_OUTPUT_DIR)]
             if not os.path.exists(output_dir):
                 os.makedirs(output_dir)
-            ppa(datas, f"{output_dir}/{img_idx + (epoch_idx) * len(dataset)}", is_stereo)
-            # count = count + 1
-            # break
+            ppa(datas, f"{output_dir}/{img_idx + 1698}", is_stereo)
+            count = count + 1
+        #     break
         # break
     
     

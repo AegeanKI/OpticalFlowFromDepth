@@ -63,7 +63,7 @@ class FlowAugmentor:
 
         return img1, img2
 
-    def spatial_transform(self, img1, img2, flow, img1_depth=None, occlusion=None):
+    def spatial_transform(self, img1, img2, flow, img1_depth, occlusion=None):
         # randomly sample scale
         ht, wd = img1.shape[:2]
 
@@ -87,9 +87,8 @@ class FlowAugmentor:
             img2 = cv2.resize(img2, None, fx=scale_x, fy=scale_y, interpolation=cv2.INTER_LINEAR)
             flow = cv2.resize(flow, None, fx=scale_x, fy=scale_y, interpolation=cv2.INTER_LINEAR)
             flow = flow * [scale_x, scale_y]
-            if img1_depth is not None:
-                img1_depth = cv2.resize(img1_depth, None, fx=scale_x, fy=scale_y, interpolation=cv2.INTER_LINEAR)
-                img1_depth = np.expand_dims(img1_depth, 2)
+            img1_depth = cv2.resize(img1_depth, None, fx=scale_x, fy=scale_y, interpolation=cv2.INTER_LINEAR)
+            img1_depth = np.expand_dims(img1_depth, 2)
 
             if occlusion is not None:
                 occlusion = cv2.resize(occlusion, None, fx=scale_x, fy=scale_y, interpolation=cv2.INTER_LINEAR)
@@ -99,8 +98,7 @@ class FlowAugmentor:
                 img1 = img1[:, ::-1]
                 img2 = img2[:, ::-1]
                 flow = flow[:, ::-1] * [-1.0, 1.0]
-                if img1_depth is not None:
-                    img1_depth = img1_depth[:, ::-1]
+                img1_depth = img1_depth[:, ::-1]
 
                 if occlusion is not None:
                     occlusion = occlusion[:, ::-1]
@@ -109,8 +107,7 @@ class FlowAugmentor:
                 img1 = img1[::-1, :]
                 img2 = img2[::-1, :]
                 flow = flow[::-1, :] * [1.0, -1.0]
-                if img1_depth is not None:
-                    img1_depth = img1_depth[::-1, :]
+                img1_depth = img1_depth[::-1, :]
 
                 if occlusion is not None:
                     occlusion = occlusion[::-1, :]
@@ -128,52 +125,34 @@ class FlowAugmentor:
         img1 = img1[y0:y0 + self.crop_size[0], x0:x0 + self.crop_size[1]]
         img2 = img2[y0:y0 + self.crop_size[0], x0:x0 + self.crop_size[1]]
         flow = flow[y0:y0 + self.crop_size[0], x0:x0 + self.crop_size[1]]
-        if img1_depth is not None:
-            img1_depth = img1_depth[y0:y0 + self.crop_size[0], x0:x0 + self.crop_size[1]]
+        img1_depth = img1_depth[y0:y0 + self.crop_size[0], x0:x0 + self.crop_size[1]]
 
         if occlusion is not None:
             occlusion = occlusion[y0:y0 + self.crop_size[0], x0:x0 + self.crop_size[1]]
-            if img1_depth is not None:
-                return img1, img2, flow, img1_depth, occlusion
-            else:
-                return img1, img2, flow, occlusion
+            return img1, img2, flow, img1_depth, occlusion
 
-        if img1_depth is not None:
-            return img1, img2, flow, img1_depth
-        return img1, img2, flow
+        return img1, img2, flow, img1_depth
 
-    def __call__(self, img1, img2, flow, img1_depth=None, occlusion=None):
+    def __call__(self, img1, img2, flow, img1_depth, occlusion=None):
         img1, img2 = self.color_transform(img1, img2)
         img1, img2 = self.eraser_transform(img1, img2)
 
         if occlusion is not None:
-            if img1_depth is not None:
-                img1, img2, flow, img1_depth, occlusion = self.spatial_transform(
-                    img1, img2, flow, img1_depth=img1_depth, occlusion=occlusion)
-            else:
-                img1, img2, flow, occlusion = self.spatial_transform(
-                    img1, img2, flow, occlusion=occlusion)
+            img1, img2, flow, img1_depth, occlusion = self.spatial_transform(
+                img1, img2, flow, img1_depth, occlusion)
         else:
-            if img1_depth is not None:
-                img1, img2, flow, img1_depth = self.spatial_transform(img1, img2, flow, img1_depth=img1_depth)
-            else:
-                img1, img2, flow = self.spatial_transform(img1, img2, flow)
+            img1, img2, flow, img1_depth = self.spatial_transform(img1, img2, flow, img1_depth)
 
         img1 = np.ascontiguousarray(img1)
         img2 = np.ascontiguousarray(img2)
         flow = np.ascontiguousarray(flow)
-        if img1_depth is not None:
-            img1_depth = np.ascontiguousarray(img1_depth)
+        img1_depth = np.ascontiguousarray(img1_depth)
 
         if occlusion is not None:
             occlusion = np.ascontiguousarray(occlusion)
-            if img1_depth is not None:
-                return img1, img2, flow, img1_depth, occlusion
-            return img1, img2, flow, occlusion
+            return img1, img2, flow, img1_depth, occlusion
 
-        if img1_depth is not None:
-            return img1, img2, flow, img1_depth
-        return img1, img2, flow
+        return img1, img2, flow, img1_depth
 
 
 class SparseFlowAugmentor:

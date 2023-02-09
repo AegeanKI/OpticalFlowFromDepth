@@ -189,7 +189,19 @@ mkdir -p checkpoints
 #     --gpus $gpu --num_steps 120000 --batch_size 5 --lr 0.00005 --val_freq 1000 \
 #     --image_size 400 720 --wdecay 0.0001 \
 #     --mixed_precision
+#     --mixed_precision
 
+# Feb 3
+# check AD_s + FT, lr 0.00005
+# name=raft-ad-s-c-2e5-1
+# gpu=7
+
+# python -u train.py --name $name-t --stage things \
+#     --validation kitti \
+#     --restore_ckpt checkpoints/$name.pth \
+#     --gpus $gpu --num_steps 120000 --batch_size 5 --lr 0.00005 --val_freq 1000 \
+#     --image_size 400 720 --wdecay 0.0001 \
+#     --mixed_precision
 
 # Feb 3
 # check AD+s
@@ -229,7 +241,25 @@ python -u train.py --name ${name} --stage test-augmentedredweb \
     --min_classify_loss_weight 0 \
     --mixed_precision
 
+# Feb 8
+# check test_AR
 
+# name=raft-ad+s-c-2e5-1
+# gpu=3
+
+# python -u train.py --name ${name} --stage augmenteddiml \
+#     --validation kitti \
+#     --gpus ${gpu} --num_steps 120000 --batch_size 8 --lr 0.00025 --val_freq 1000 \
+#     --image_size 368 496 --wdecay 0.0001 \
+#     --add_classifier \
+#     --classifier_checkpoint_timestamp 1672944585.6048822 \
+#     --classifier_checkpoint_train_acc 0.675 \
+#     --classifier_checkpoint_test_acc 0.804 \
+#     --classify_loss_weight_init 1 \
+#     --classify_loss_weight_increase -0.00002 \
+#     --max_classify_loss_weight 1 \
+#     --min_classify_loss_weight 0 \
+#     --mixed_precision
 
 
 
