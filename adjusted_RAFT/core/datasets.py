@@ -13,7 +13,7 @@ import os.path as osp
 
 from utils import frame_utils
 from utils.augmentor import FlowAugmentor, SparseFlowAugmentor
-from my_dataloader import AugmentedReDWeb, AugmentedDIML, TestAugmentedReDWeb
+from my_dataloader import AugmentedReDWeb, AugmentedDIML, TestAugmentedReDWeb, FlowDIML, TestFlowReDWeb
 
 class FlowDataset(data.Dataset):
     def __init__(self, aug_params=None, sparse=False):
@@ -254,16 +254,26 @@ class TestRAFTAugmentedReDWeb(RAFTAugmentedDataset):
     def __init__(self, aug_params=None, split='training'):
         super(TestRAFTAugmentedReDWeb, self).__init__(aug_params)
         
-        self.augmenteddataset = TestAugmentedReDWeb(normalize_dataset=False, size=(384, 512))
+        self.augmenteddataset = TestAugmentedReDWeb(normalize_dataset=False)
 
 class RAFTAugmentedDIML(RAFTAugmentedDataset):
     def __init__(self, aug_params=None, split='training'):
         super(RAFTAugmentedDIML, self).__init__(aug_params)
         
         self.augmenteddataset = AugmentedDIML(normalize_dataset=False)
-        # self.augmenteddataset = AugmentedDIML(normalize_dataset=False, size=(512, 1382))
+
+class RAFTFlowDIML(RAFTAugmentedDataset):
+    def __init__(self, aug_params=None, split='training'):
+        super(RAFTFlowDIML, self).__init__(aug_params)
+        
+        self.augmenteddataset = FlowDIML(normalize_dataset=False)
 
 
+class TestRAFTFlowReDWeb(RAFTAugmentedDataset):
+    def __init__(self, aug_params=None, split='training'):
+        super(TestRAFTFlowReDWeb, self).__init__(aug_params)
+        
+        self.augmenteddataset = TestFlowReDWeb(normalize_dataset=False)
 
 def fetch_dataloader(args, TRAIN_DS='C+T+K+S+H'):
     """ Create the data loader for the corresponding trainign set """
@@ -310,6 +320,16 @@ def fetch_dataloader(args, TRAIN_DS='C+T+K+S+H'):
         print(f"{args = }")
         aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
         train_dataset = TestRAFTAugmentedReDWeb(aug_params, split='training')
+
+    elif args.stage == "flowdiml":
+        print(f"{args = }")
+        aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
+        train_dataset = RAFTFlowDIML(aug_params, split='training')
+
+    elif args.stage == "test-flowredweb":
+        print(f"{args = }")
+        aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
+        train_dataset = TestRAFTFlowReDWeb(aug_params, split='training')
 
     train_loader = data.DataLoader(train_dataset, batch_size=args.batch_size, 
         pin_memory=False, shuffle=True, num_workers=4, drop_last=True)
