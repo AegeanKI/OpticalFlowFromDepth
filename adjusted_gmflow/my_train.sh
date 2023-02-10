@@ -223,23 +223,23 @@ NUM_GPUS=4
 # --num_steps 200000 \
 # 2>&1 | tee -a ${checkpoint_dir}/train.log
 
-# Feb 9
-# gmflow AD-s
-# AD vs FlowDIML
+# Feb 10
+# gmflow AD+s
+# AD+s vs FD+s
 
-name=gmflow-fd+s-noc
-port=9989
+name=gmflow-ad+s-noc
+port=9988
 checkpoint_dir=checkpoints/$name && \
 mkdir -p ${checkpoint_dir} && \
-CUDA_VISIBLE_DEVICES=4,5,6,7 \
+CUDA_VISIBLE_DEVICES=0,1,2,3 \
 python -m torch.distributed.launch --nproc_per_node=${NUM_GPUS} --master_port=${port} main.py \
 --launcher pytorch \
 --checkpoint_dir ${checkpoint_dir} \
---stage flowdiml \
---batch_size 8 \
+--stage augmenteddiml \
+--batch_size 16 \
 --val_dataset kitti sintel \
 --lr 4e-4 \
---image_size 368 496 \
+--image_size 384 512 \
 --padding_factor 16 \
 --upsample_factor 8 \
 --with_speed_metric \

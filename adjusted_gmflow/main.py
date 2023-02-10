@@ -474,14 +474,14 @@ def main(args):
             for param in model_without_ddp.parameters():
                 param.grad = None
 
-            # loss.backward()
+            loss.backward()
 
-            # # Gradient clipping
-            # torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
+            # Gradient clipping
+            torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
 
-            # optimizer.step()
+            optimizer.step()
 
-            # lr_scheduler.step()
+            lr_scheduler.step()
 
             if args.local_rank == 0:
                 logger.push(metrics)
