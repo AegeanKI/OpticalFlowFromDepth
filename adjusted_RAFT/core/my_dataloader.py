@@ -293,6 +293,24 @@ class FlowDIML(DepthToFlowDataset):
         group_npz_filename = f"{dataset_dir}/{idx}/group.npz"
         return self.getitem_from_npz(group_npz_filename, random_group, idx)
 
+
+class VEMDIML(DepthToFlowDataset):
+    def __init__(self, normalize_dataset=True, size=None):
+        super().__init__(normalize_dataset, size)
+
+    def __len__(self):
+        # return 1505
+        return 1505 * 2
+
+    def __getitem__(self, idx):
+        images_dirs = ["dataA", "dataB", "dataC"]
+        dataset_dir = f"datasets/AugmentedDIML/{images_dirs[int((idx % 1505)/502)]}"
+        random_group = 1
+        # group_npz_filename = f"{dataset_dir}/{idx + 1505}/group.npz"
+        group_npz_filename = f"{dataset_dir}/{idx}/group.npz"
+        return self.getitem_from_npz(group_npz_filename, random_group, idx)
+
+
 class TestFlowReDWeb(DepthToFlowDataset):
     def __init__(self, normalize_dataset=True, size=None):
         super().__init__(normalize_dataset, size)
@@ -309,6 +327,24 @@ class TestFlowReDWeb(DepthToFlowDataset):
         # group_npz_filename = f"{dataset_dir}/{idx + 3600}/group.npz"
         group_npz_filename = f"{dataset_dir}/{idx}/group.npz"
         return self.getitem_from_npz(group_npz_filename, random_group, idx)
+
+class TestVEMReDWeb(DepthToFlowDataset):
+    def __init__(self, normalize_dataset=True, size=None):
+        super().__init__(normalize_dataset, size)
+
+    def __len__(self):
+        # return 3600
+        # return 7200
+        return 1698 * 2
+
+    def __getitem__(self, idx):
+        images_dirs = ["dataA", "dataB", "dataC"]
+        dataset_dir = f"datasets/test_AugmentedReDWeb/{images_dirs[int((idx % 1698)/566)]}"
+        random_group = 1
+        # group_npz_filename = f"{dataset_dir}/{idx + 3600}/group.npz"
+        group_npz_filename = f"{dataset_dir}/{idx}/group.npz"
+        return self.getitem_from_npz(group_npz_filename, random_group, idx)
+
 
 class TestAugmentedReDWeb(AugmentedDataset):
     def __init__(self, normalize_dataset=True, size=None):
