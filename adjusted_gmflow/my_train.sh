@@ -163,88 +163,53 @@ NUM_GPUS=4
 # --max_classify_loss_weight 1 \
 # --min_classify_loss_weight 0 \
 
-# Feb 8
-# gmflow + FC + ad+s
-# batch size 8, lr 2e-4, test stage 1, 2 different
+# Feb 10
+# gmflow AD+s
+# AD+s vs FD+s
 
-# name=gmflow-fc-ad+s2-noc
-# port=9989
-# checkpoint_dir=checkpoints/$name && \
-# mkdir -p ${checkpoint_dir} && \
-# CUDA_VISIBLE_DEVICES=4,5,6,7 \
-# python -m torch.distributed.launch --nproc_per_node=${NUM_GPUS} --master_port=${port} main.py \
-# --launcher pytorch \
-# --checkpoint_dir ${checkpoint_dir} \
-# --resume checkpoints/pretrained/gmflow_chairs-1d776046.pth \
-# --stage augmenteddiml \
-# --batch_size 8 \
-# --val_dataset kitti sintel \
-# --lr 2e-4 \
-# --image_size 384 512 \
-# --padding_factor 16 \
-# --upsample_factor 8 \
-# --with_speed_metric \
-# --val_freq 1000 \
-# --save_ckpt_freq 1000 \
-# --num_steps 200000 \
-# 2>&1 | tee -a ${checkpoint_dir}/train.log
-# --add_classifier \
-# --classifier_checkpoint_timestamp 1672944585.6048822 \
-# --classifier_checkpoint_train_acc 0.675 \
-# --classifier_checkpoint_test_acc 0.804 \
-# --classify_loss_weight_init 1 \
-# --classify_loss_weight_increase -0.00001 \
-# --max_classify_loss_weight 1 \
-# --min_classify_loss_weight 0 \
-
-# Feb 9
-# gmflow + FC + ad+s
-# batch size 8, lr 2e-4, test stage things, kitti different
-
-# name=gmflow-fc-ad+sk-noc
-# port=9989
+# name=gmflow-ad+s-noc
+# port=9988
 # checkpoint_dir=checkpoints/$name && \
 # mkdir -p ${checkpoint_dir} && \
 # CUDA_VISIBLE_DEVICES=0,1,2,3 \
 # python -m torch.distributed.launch --nproc_per_node=${NUM_GPUS} --master_port=${port} main.py \
 # --launcher pytorch \
 # --checkpoint_dir ${checkpoint_dir} \
-# --resume checkpoints/pretrained/gmflow_chairs-1d776046.pth \
 # --stage augmenteddiml \
-# --batch_size 8 \
+# --batch_size 16 \
 # --val_dataset kitti sintel \
-# --lr 2e-4 \
+# --lr 4e-4 \
 # --image_size 384 512 \
 # --padding_factor 16 \
 # --upsample_factor 8 \
 # --with_speed_metric \
 # --val_freq 1000 \
 # --save_ckpt_freq 1000 \
-# --num_steps 200000 \
+# --num_steps 100000 \
 # 2>&1 | tee -a ${checkpoint_dir}/train.log
 
 # Feb 10
-# gmflow AD+s
-# AD+s vs FD+s
+# gmflow + FC + ad+s
+# batch size 8, lr 2e-4, test stage things, kitti different
 
-name=gmflow-ad+s-noc
-port=9988
+name=gmflow-fc-ad+sk-noc
+port=9989
 checkpoint_dir=checkpoints/$name && \
 mkdir -p ${checkpoint_dir} && \
-CUDA_VISIBLE_DEVICES=0,1,2,3 \
+CUDA_VISIBLE_DEVICES=4,5,6,7 \
 python -m torch.distributed.launch --nproc_per_node=${NUM_GPUS} --master_port=${port} main.py \
 --launcher pytorch \
 --checkpoint_dir ${checkpoint_dir} \
+--resume checkpoints/pretrained/gmflow_chairs-1d776046.pth \
 --stage augmenteddiml \
---batch_size 16 \
+--batch_size 8 \
 --val_dataset kitti sintel \
---lr 4e-4 \
+--lr 2e-4 \
 --image_size 384 512 \
 --padding_factor 16 \
 --upsample_factor 8 \
 --with_speed_metric \
 --val_freq 1000 \
 --save_ckpt_freq 1000 \
---num_steps 100000 \
+--num_steps 200000 \
 2>&1 | tee -a ${checkpoint_dir}/train.log
-
