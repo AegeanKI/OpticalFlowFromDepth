@@ -11,7 +11,8 @@ import os.path as osp
 
 from utils import frame_utils
 from data.transforms import FlowAugmentor, SparseFlowAugmentor
-from data.my_dataloader import AugmentedReDWeb, AugmentedDIML, FlowDIML
+# from data.my_dataloader import AugmentedReDWeb, AugmentedDIML, FlowDIML
+from data.my_dataloader import AugmentedDIML, FlowDIML
 
 class FlowDataset(data.Dataset):
     def __init__(self, aug_params=None, sparse=False,
@@ -93,7 +94,8 @@ class FlowDataset(data.Dataset):
                 if self.load_occlusion:
                     img1, img2, flow, occlusion = self.augmentor(img1, img2, flow, occlusion=occlusion)
                 else:
-                    img1, img2, flow = self.augmentor(img1, img2, flow)
+                    # img1, img2, flow = self.augmentor(img1, img2, flow)
+                    img1, img2, flow, _ = self.augmentor(img1, img2, flow, img1_depth=None)
 
         img1 = torch.from_numpy(img1).permute(2, 0, 1).float()
         img2 = torch.from_numpy(img2).permute(2, 0, 1).float()
@@ -112,9 +114,9 @@ class FlowDataset(data.Dataset):
             # non-occlusion: 0, occlusion: 255
             noc_valid = 1 - occlusion / 255.  # 0 or 1
 
-            return img1, img2, flow, valid.float(), noc_valid.float()
+            return img1, img2, flow, torch.ones(1), valid.float(), noc_valid.float(), torch.ones(1)
 
-        return img1, img2, flow, valid.float()
+        return img1, img2, flow, torch.ones(1), valid.float(), torch.ones(1)
 
     def __rmul__(self, v):
         self.flow_list = v * self.flow_list
@@ -305,14 +307,14 @@ class RAFTAugmentedDataset(FlowDataset):
         return img1, img2, flow, img1_depth, valid.float(), label
 
 
-class RAFTAugmentedReDWeb(RAFTAugmentedDataset):
-    def __init__(self, aug_params=None, split='training'):
-        super().__init__(aug_params, split)
-        # if aug_params:
-        #     h, w = aug_params['crop_size']
-        #     self.augmented_dataset = AugmentedReDWeb(normalize_dataset=False, size=(h + 1, w + 1))
-        # else:
-        self.augmented_dataset = AugmentedReDWeb(normalize_dataset=False, size=None)
+# class RAFTAugmentedReDWeb(RAFTAugmentedDataset):
+#     def __init__(self, aug_params=None, split='training'):
+#         super().__init__(aug_params, split)
+#         # if aug_params:
+#         #     h, w = aug_params['crop_size']
+#         #     self.augmented_dataset = AugmentedReDWeb(normalize_dataset=False, size=(h + 1, w + 1))
+#         # else:
+#         self.augmented_dataset = AugmentedReDWeb(normalize_dataset=False, size=None)
 
 class RAFTAugmentedDIML(RAFTAugmentedDataset):
     def __init__(self, aug_params=None, split='training'):
@@ -329,7 +331,9 @@ class RAFTFlowDIML(RAFTAugmentedDataset):
 def build_train_dataset(args):
     """ Create the data loader for the corresponding training set """
     if args.stage == 'chairs':
-        aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
+        # aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
+        # aug_params = {'crop_size': args.image_size, 'min_scale': -0.4, 'max_scale': 0.8, 'do_flip': True} # things
+        aug_params = {'crop_size': args.image_size, 'min_scale': -0.2, 'max_scale': 0.4, 'do_flip': True} # kitti
 
         train_dataset = FlyingChairs(aug_params, split='training')
 
@@ -364,14 +368,14 @@ def build_train_dataset(args):
 
         train_dataset = KITTI(aug_params, split='training',)
     
-    elif args.stage == "augmentedredweb":
-        aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
-        train_dataset = RAFTAugmentedReDWeb(aug_params, split='training')
+    # elif args.stage == "augmentedredweb":
+    #     aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
+    #     train_dataset = RAFTAugmentedReDWeb(aug_params, split='training')
     
     elif args.stage == "augmenteddiml":
-        # aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
-        # aug_params = {'crop_size': args.image_size, 'min_scale': -0.4, 'max_scale': 0.8, 'do_flip': True}
-        aug_params = {'crop_size': args.image_size, 'min_scale': -0.2, 'max_scale': 0.4, 'do_flip': True}
+        # aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True} # chairs
+        # aug_params = {'crop_size': args.image_size, 'min_scale': -0.4, 'max_scale': 0.8, 'do_flip': True} # things
+        aug_params = {'crop_size': args.image_size, 'min_scale': -0.2, 'max_scale': 0.4, 'do_flip': True} # kitti
         train_dataset = RAFTAugmentedDIML(aug_params, split='training')
     
     elif args.stage == "flowdiml":
