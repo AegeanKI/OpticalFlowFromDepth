@@ -11,7 +11,8 @@ import os.path as osp
 
 from utils import frame_utils
 from data.transforms import FlowAugmentor, SparseFlowAugmentor
-from data.my_dataloader import AugmentedReDWeb, AugmentedDIML, FlowDIML
+# from data.my_dataloader import AugmentedReDWeb, AugmentedDIML, FlowDIML
+from data.my_dataloader import AugmentedDIML, FlowDIML
 
 class FlowDataset(data.Dataset):
     def __init__(self, aug_params=None, sparse=False,
@@ -305,14 +306,14 @@ class RAFTAugmentedDataset(FlowDataset):
         return img1, img2, flow, img1_depth, valid.float(), label
 
 
-class RAFTAugmentedReDWeb(RAFTAugmentedDataset):
-    def __init__(self, aug_params=None, split='training'):
-        super().__init__(aug_params, split)
-        # if aug_params:
-        #     h, w = aug_params['crop_size']
-        #     self.augmented_dataset = AugmentedReDWeb(normalize_dataset=False, size=(h + 1, w + 1))
-        # else:
-        self.augmented_dataset = AugmentedReDWeb(normalize_dataset=False, size=None)
+# class RAFTAugmentedReDWeb(RAFTAugmentedDataset):
+#     def __init__(self, aug_params=None, split='training'):
+#         super().__init__(aug_params, split)
+#         # if aug_params:
+#         #     h, w = aug_params['crop_size']
+#         #     self.augmented_dataset = AugmentedReDWeb(normalize_dataset=False, size=(h + 1, w + 1))
+#         # else:
+#         self.augmented_dataset = AugmentedReDWeb(normalize_dataset=False, size=None)
 
 class RAFTAugmentedDIML(RAFTAugmentedDataset):
     def __init__(self, aug_params=None, split='training'):
@@ -364,9 +365,9 @@ def build_train_dataset(args):
 
         train_dataset = KITTI(aug_params, split='training',)
     
-    elif args.stage == "augmentedredweb":
-        aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
-        train_dataset = RAFTAugmentedReDWeb(aug_params, split='training')
+    # elif args.stage == "augmentedredweb":
+    #     aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
+    #     train_dataset = RAFTAugmentedReDWeb(aug_params, split='training')
     
     elif args.stage == "augmenteddiml":
         # aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
