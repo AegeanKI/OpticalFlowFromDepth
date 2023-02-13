@@ -348,8 +348,6 @@ class TinyEncoder(nn.Module):
         return x
 
 
-
-
 class Classifier(nn.Module):
     def __init__(self, device, output_dim=64, norm_fn='batch', dropout=0.9,
                  use_small=False, use_dropout_in_encoder=True, use_dropout_in_classify=False,
