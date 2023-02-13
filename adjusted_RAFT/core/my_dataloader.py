@@ -65,7 +65,7 @@ class ReDWeb(data.Dataset):
 class DIML(data.Dataset):
     def __init__(self, dataset_dir, num_images=None, load=False):
         self.dataset_dir = dataset_dir
-        self.img_paths = glob.glob(f"{dataset_dir}/train/HR/outleft/*")
+        self.img_paths = glob.glob(f"{dataset_dir}/train/LR/outleft/*")
         random.shuffle(self.img_paths)
         with open("DIML_img_paths.pkl", "rb") as fp:
             self.img_paths = pickle.load(fp)
@@ -92,34 +92,34 @@ class DIML(data.Dataset):
         return img0, img1, disp0, disp1
 
 
-class ETH3D(data.Dataset):
-    def __init__(self, dataset_dir, num_images=None):
-        self.dataset_dir = dataset_dir
-        self.img_paths = glob.glob(f"{dataset_dir}/*/stereo_pairs/*")
-        # print(f"{self.img_path = }")
-        random.shuffle(self.img_paths)
-        if num_images and len(self.img_paths) > num_images:
-            self.img_paths = self.img_paths[:num_images]
+# class ETH3D(data.Dataset):
+#     def __init__(self, dataset_dir, num_images=None):
+#         self.dataset_dir = dataset_dir
+#         self.img_paths = glob.glob(f"{dataset_dir}/*/stereo_pairs/*")
+#         # print(f"{self.img_path = }")
+#         random.shuffle(self.img_paths)
+#         if num_images and len(self.img_paths) > num_images:
+#             self.img_paths = self.img_paths[:num_images]
 
-    def __len__(self):
-        return len(self.img_paths)
+#     def __len__(self):
+#         return len(self.img_paths)
 
 
-    def __getitem__(self, idx):
-        img0_path = f"{self.img_paths[idx]}/im0.png"
-        img1_path = f"{self.img_paths[idx]}/im1.png"
-        disp0_path = f"{self.img_paths[idx]}/disp0GT.pfm"
-        disp1_path = f"{self.img_paths[idx]}/disp1GT.pfm"
+#     def __getitem__(self, idx):
+#         img0_path = f"{self.img_paths[idx]}/im0.png"
+#         img1_path = f"{self.img_paths[idx]}/im1.png"
+#         disp0_path = f"{self.img_paths[idx]}/disp0GT.pfm"
+#         disp1_path = f"{self.img_paths[idx]}/disp1GT.pfm"
 
-        img0, img_size = utils.get_img(img0_path)
-        img1, _ = utils.get_img(img1_path)
-        disp0, disp_size = utils.get_disparity(disp0_path)
-        disp1, _ = utils.get_disparity(disp1_path)
-        if img_size != disp_size:
-            disp0 = T.Resize(img_size)(disp0)
-            disp1 = T.Resize(img_size)(disp1)
+#         img0, img_size = utils.get_img(img0_path)
+#         img1, _ = utils.get_img(img1_path)
+#         disp0, disp_size = utils.get_disparity(disp0_path)
+#         disp1, _ = utils.get_disparity(disp1_path)
+#         if img_size != disp_size:
+#             disp0 = T.Resize(img_size)(disp0)
+#             disp1 = T.Resize(img_size)(disp1)
 
-        return img0, img1, disp0, disp1
+#         return img0, img1, disp0, disp1
 
 
 class AugmentedDataset(data.Dataset):
@@ -238,24 +238,25 @@ class DepthToFlowDataset(data.Dataset):
         label[label_type] = 1
         return img0, img1, flow, img0_depth, label
 
-class AugmentedReDWeb(AugmentedDataset):
-    def __init__(self, normalize_dataset=True, size=None):
-        super().__init__(normalize_dataset, size)
 
-    def __len__(self):
-        # return 3600
-        return 7200
+# class AugmentedReDWeb(AugmentedDataset):
+#     def __init__(self, normalize_dataset=True, size=None):
+#         super().__init__(normalize_dataset, size)
 
-    def __getitem__(self, idx):
-        images_dirs = ["dataA", "dataB", "dataC"]
-        dataset_dir = f"datasets/AugmentedReDWeb/{images_dirs[int((idx % 3600)/1200)]}"
-        random_group = np.random.randint(0, 3)
-        random_augment = np.random.randint(0, 12)
-        random_set = np.random.randint(1, 3)
-        npz_filename = f"{dataset_dir}/{idx}/{random_group}_{random_augment}_{random_set}.npz"
-        # group_npz_filename = f"{dataset_dir}/{idx + 3600}/group.npz"
-        group_npz_filename = f"{dataset_dir}/{idx}/group.npz"
-        return self.getitem_from_npz(npz_filename, group_npz_filename, random_group, idx)
+#     def __len__(self):
+#         # return 3600
+#         return 7200
+
+#     def __getitem__(self, idx):
+#         images_dirs = ["dataA", "dataB", "dataC"]
+#         dataset_dir = f"datasets/AugmentedReDWeb/{images_dirs[int((idx % 3600)/1200)]}"
+#         random_group = np.random.randint(0, 3)
+#         random_augment = np.random.randint(0, 12)
+#         random_set = np.random.randint(1, 3)
+#         npz_filename = f"{dataset_dir}/{idx}/{random_group}_{random_augment}_{random_set}.npz"
+#         # group_npz_filename = f"{dataset_dir}/{idx + 3600}/group.npz"
+#         group_npz_filename = f"{dataset_dir}/{idx}/group.npz"
+#         return self.getitem_from_npz(npz_filename, group_npz_filename, random_group, idx)
 
 
 class AugmentedDIML(AugmentedDataset):
@@ -276,6 +277,7 @@ class AugmentedDIML(AugmentedDataset):
         # group_npz_filename = f"{dataset_dir}/{idx + 1505}/group.npz"
         group_npz_filename = f"{dataset_dir}/{idx}/group.npz"
         return self.getitem_from_npz(npz_filename, group_npz_filename, random_group, idx)
+
 
 class FlowDIML(DepthToFlowDataset):
     def __init__(self, normalize_dataset=True, size=None):
