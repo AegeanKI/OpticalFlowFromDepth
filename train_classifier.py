@@ -150,8 +150,13 @@ if __name__ == "__main__":
         dataset = FlowDIML(normalize_dataset=args.normalize_dataset)
     elif args.dataset == "vemdiml":
         dataset = VEMDIML(normalize_dataset=args.normalize_dataset)
+    elif args.dataset == "merge":
+        ar = TestAugmentedReDWeb(normalize_dataset=args.normalize_dataset, crop_size=(384, 512))
+        ad = AugmentedDIML(normalize_dataset=args.normalize_dataset, crop_size=(384, 512))
+        dataset = ar + ad
     dataset_size = len(dataset)
-    
+    print(f"train with {dataset_size} images")
+
     indices = list(range(dataset_size))
     split = int(np.floor(test_split * dataset_size))
     
@@ -174,16 +179,17 @@ if __name__ == "__main__":
         pct_start=0.05, cycle_momentum=False, anneal_strategy='linear')
 
     for epoch in range(args.max_epoch):
+        print(f"epoch {epoch + 1} / {args.max_epoch}:")
         total = 0
         correct = 0
         confusion_matrix = np.zeros((args.num_classes, args.num_classes))
         model.train()
         for batch_idx, (_, _, flow, depth, label) in enumerate(tqdm(train_loader)):
-            flow = flow.to(device)
-            depth = depth.to(device)
+            flow = flow.float().to(device)
+            depth = depth.float().to(device)
             label = label.to(device)
             flow = flow * (depth != 100).repeat(1, 2, 1, 1)
-            flow_depth = torch.cat((flow, depth), axis=1).float().to(device)
+            flow_depth = torch.cat((flow, depth), axis=1).to(device)
 
             optimizer.zero_grad()
             if not args.use_depth_in_classifier:
@@ -214,11 +220,11 @@ if __name__ == "__main__":
         confusion_matrix = np.zeros((args.num_classes, args.num_classes))
         model.eval()
         for batch_idx, (_, _, flow, depth, label) in enumerate(tqdm(test_loader)):
-            flow = flow.to(device)
-            depth = depth.to(device)
+            flow = flow.float().to(device)
+            depth = depth.float().to(device)
             label = label.to(device)
             flow = flow * (depth != 100).repeat(1, 2, 1, 1)
-            flow_depth = torch.cat((flow, depth), axis=1).float().to(device)
+            flow_depth = torch.cat((flow, depth), axis=1).to(device)
 
             if not args.use_depth_in_classifier:
                 predict1 = model(flow)
