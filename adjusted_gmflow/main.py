@@ -16,7 +16,7 @@ from utils.logger import Logger
 from utils import misc
 from utils.dist_utils import get_dist_info, init_dist, setup_for_distributed
 
-from my_classifier import RAFTClassifier
+from my_classifier import RAFTClassifier, Classifier
 from torch.nn import CrossEntropyLoss
 import json
 
@@ -29,6 +29,8 @@ def get_args_parser():
     parser.add_argument('--stage', default='chairs', type=str,
                         help='training stage')
     parser.add_argument('--image_size', default=[384, 512], type=int, nargs='+',
+                        help='image size for training')
+    parser.add_argument('--original_image_size', default=[384, 512], type=int, nargs='+',
                         help='image size for training')
     parser.add_argument('--padding_factor', default=16, type=int,
                         help='the input should be divisible by padding_factor, otherwise do padding')
@@ -193,13 +195,22 @@ def main(args):
         with open(f"{classifier_checkpoints_dir}/args.txt") as f:
             classifier_args = json.load(f)
         print(f"{classifier_args = }")
-        classifier = RAFTClassifier(device=device,
+        if not classifier_args["use_depth_in_classifier"]:
+            classifier = Classifier(device=device,
                                     output_dim=classifier_args["output_dim"],
                                     dropout=classifier_args["dropout"],
                                     use_small=classifier_args["use_small"],
                                     use_dropout_in_encoder=classifier_args["use_dropout_in_encoder"],
                                     use_dropout_in_classify=classifier_args["use_dropout_in_classify"],
                                     use_average_pooling=classifier_args["use_average_pooling"])
+        else:
+            classifier = RAFTClassifier(device=device,
+                                        output_dim=classifier_args["output_dim"],
+                                        dropout=classifier_args["dropout"],
+                                        use_small=classifier_args["use_small"],
+                                        use_dropout_in_encoder=classifier_args["use_dropout_in_encoder"],
+                                        use_dropout_in_classify=classifier_args["use_dropout_in_classify"],
+                                        use_average_pooling=classifier_args["use_average_pooling"])
         classifier.load_state_dict(torch.load(f"{classifier_checkpoints_dir}/{classifier_checkpoint_name}",
                                               map_location=device))
         classifier.to(device)
@@ -208,7 +219,7 @@ def main(args):
 
         classify_loss_weight = args.classify_loss_weight_init
 
-        h, w = args.image_size # ?
+        h, w = args.original_image_size
     # =========================
 
     if not args.eval and not args.submission and not args.inference_dir:
@@ -447,9 +458,15 @@ def main(args):
                 normalized_flow = flow_preds[-1]
                 normalized_flow[:, 0] = normalized_flow[:, 0] / h
                 normalized_flow[:, 1] = normalized_flow[:, 1] / w
-                normalized_depth = img1_depth / 100
-                normalized_flow_depth = torch.cat((normalized_flow, normalized_depth), axis=1).float()
-                predict1 = classifier(normalized_flow_depth)
+                normalized_flow = normalized_flow.float()
+                normalized_depth = (img1_depth / 100).float()
+                normalized_flow_depth = torch.cat((normalized_flow, normalized_depth), axis=1)
+
+                if not classifier_args["use_depth_in_classifier"]:
+                    predict1 = classifier(normalized_flow)
+                else:
+                    predict1 = classifier(normalized_flow_depth)
+
                 classify_loss = classify_loss_func(predict1, label)
                 print(f"{total_steps}: loss = flow_loss + classify_loss * {classify_loss_weight:.3f}", end='')
                 print(f" = {loss.item()} + {classify_loss.item()} * {classify_loss_weight:.3f}")

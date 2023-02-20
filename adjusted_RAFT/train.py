@@ -21,7 +21,7 @@ import datasets
 
 from torch.utils.tensorboard import SummaryWriter
 
-from my_classifier import RAFTClassifier
+from my_classifier import RAFTClassifier, Classifier
 from torch.nn import CrossEntropyLoss
 import json
 
@@ -153,11 +153,6 @@ def train(args):
         model.module.freeze_bn()
 
     # =====
-    # which_time = 1671161250.3501413
-    # train_acc, test_acc = 0.663, 0.647
-    # train_acc, test_acc = 0.738, 0.774
-    # train_acc, test_acc = 0.763, 0.774
-
     if args.add_classifier:
         classifier_checkpoints_dir = f"outputs/models/{args.classifier_checkpoint_timestamp}"
         train_acc = args.classifier_checkpoint_train_acc
@@ -165,13 +160,23 @@ def train(args):
         classifier_checkpoints_name = f"{train_acc=}_{test_acc=}.pt"
         with open(f"{classifier_checkpoints_dir}/args.txt") as f:
             classifier_args = json.load(f)
-        classifier = RAFTClassifier(device=args.gpus[0],
+        print(f"{classifier_args = }")
+        if not classifier_args["use_depth_in_classifier"]:
+            classifier = Classifier(device=args.gpus[0],
                                     output_dim=classifier_args["output_dim"],
                                     dropout=classifier_args["dropout"],
                                     use_small=classifier_args["use_small"],
                                     use_dropout_in_encoder=classifier_args["use_dropout_in_encoder"],
                                     use_dropout_in_classify=classifier_args["use_dropout_in_classify"],
                                     use_average_pooling=classifier_args["use_average_pooling"])
+        else:
+            classifier = RAFTClassifier(device=args.gpus[0],
+                                        output_dim=classifier_args["output_dim"],
+                                        dropout=classifier_args["dropout"],
+                                        use_small=classifier_args["use_small"],
+                                        use_dropout_in_encoder=classifier_args["use_dropout_in_encoder"],
+                                        use_dropout_in_classify=classifier_args["use_dropout_in_classify"],
+                                        use_average_pooling=classifier_args["use_average_pooling"])
         classifier.load_state_dict(torch.load(f"{classifier_checkpoints_dir}/{classifier_checkpoints_name}"))
         classifier.to(args.gpus[0])
         classifier.eval()
@@ -179,7 +184,7 @@ def train(args):
 
         classify_loss_weight = args.classify_loss_weight_init
 
-        h, w = args.image_size
+        h, w = args.original_image_size
     # =====
 
     train_loader = datasets.fetch_dataloader(args)
@@ -216,9 +221,14 @@ def train(args):
                 normalized_flow = flow_predictions[-1]
                 normalized_flow[:, 0] = normalized_flow[:, 0] / h
                 normalized_flow[:, 1] = normalized_flow[:, 1] / w
-                normalized_depth = image1_depth / 100
-                normalized_flow_depth = torch.cat((normalized_flow, normalized_depth), axis=1).float()
-                predict1 = classifier(normalized_flow_depth)
+                normalized_flow = normalized_flow.float()
+                normalized_depth = (image1_depth / 100).float()
+                normalized_flow_depth = torch.cat((normalized_flow, normalized_depth), axis=1)
+
+                if not classifier_args["use_depth_in_classifier"]:
+                    predict1 = classifier(normalized_flow)
+                else:
+                    predict1 = classifier(normalized_flow_depth)
                 classify_loss = classify_loss_func(predict1, label)
                 print(f"{total_steps}: loss = flow_loss + classify_loss * {classify_loss_weight:.3f}", end='')
                 print(f" = {loss.item()} + {classify_loss.item()} * {classify_loss_weight:.3f}")
@@ -287,6 +297,7 @@ if __name__ == '__main__':
     parser.add_argument('--num_steps', type=int, default=100000)
     parser.add_argument('--batch_size', type=int, default=6)
     parser.add_argument('--image_size', type=int, nargs='+', default=[384, 512])
+    parser.add_argument('--original_image_size', type=int, nargs='+', default=[384, 512])
     parser.add_argument('--gpus', type=int, nargs='+', default=[0,1])
     parser.add_argument('--mixed_precision', action='store_true', help='use mixed precision')
 
