@@ -1,5 +1,5 @@
 from classifier import Classifier, RAFTClassifier
-from torch.optim import AdamW
+from torch.optim import AdamW, lr_scheduler
 from torch.nn import CrossEntropyLoss
 from torch.utils.data import DataLoader, TensorDataset
 from torch.cuda import is_available
@@ -7,7 +7,9 @@ import torchvision.transforms as T
 from torch import device, from_numpy
 import torch
 # from dataloader import dCOCODataset, KITTIDataset
-from dataloader import AugmentedReDWeb, AugmentedMiddlebury
+# from dataloader import AugmentedReDWeb, AugmentedMiddlebury
+from dataloader import AugmentedDIML, FlowDIML, VEMDIML
+from dataloader import TestAugmentedReDWeb, TestFlowReDWeb, TestVEMReDWeb 
 import numpy as np
 from torch.utils.data.sampler import SubsetRandomSampler
 import utils
@@ -63,11 +65,11 @@ from argparse import ArgumentParser, BooleanOptionalAction
 #     return (img0, img1, img2, img0_depth, img1_depth, img2_depth,
 #             flow01, flow12, flow02, back_flow01, back_flow12, back_flow02)
 
-def my_collate(batch):
-    img_depth_flow = [torch.tensor(item[0]) for item in batch]
-    augment_img = [item[1] for item in batch]
-    augment_flow_type = [item[2] for item in batch]
-    return [img_depth_flow, augment_img, augment_flow_type]
+# def my_collate(batch):
+#     img_depth_flow = [torch.tensor(item[0]) for item in batch]
+#     augment_img = [item[1] for item in batch]
+#     augment_flow_type = [item[2] for item in batch]
+#     return [img_depth_flow, augment_img, augment_flow_type]
 
 def read_args():
     parser = ArgumentParser()
@@ -85,9 +87,7 @@ def read_args():
     parser.add_argument('--dataset')
     parser.add_argument('--batch_size', default=8, type=int)
     parser.add_argument('--lr', default=0.0002, type=float)
-    parser.add_argument('--min_lr', default=0.00002, type=float)
-    parser.add_argument('--lr_decay', default=0.00002, type=float)
-    parser.add_argument('--max_epoch', default=10000, type=int)
+    parser.add_argument('--max_epoch', default=100, type=int)
     parser.add_argument('--num_classes', default=4, type=int)
     parser.add_argument('--normalize_dataset', default=True, type=bool, action=BooleanOptionalAction)
     parser.add_argument('--checkpoints')
@@ -109,11 +109,11 @@ if __name__ == "__main__":
     with open(f"outputs/models/{cur_time}/args.txt", 'w') as f:
         json.dump(args.__dict__, f, indent=2)
 
-    lr = args.lr
-    device = f"cuda:{args.gpu}" if torch.cuda.is_available() else "cpu"
-    print(f"{device = }")
+    device = "cpu"
     if torch.cuda.is_available():
+        device = f"cuda:{args.gpu}"
         torch.cuda.set_device(device)
+    print(f"{device = }")
 
     if not args.use_depth_in_classifier:
         model = Classifier(device=device, output_dim=args.output_dim,
@@ -130,31 +130,36 @@ if __name__ == "__main__":
                                # use_pooling=args.use_pooling,
                                use_average_pooling=args.use_average_pooling)
     model.to(device)
-    if args.checkpoints is not None:
-        # model.load_state_dict(torch.load("outputs/models/1672736027.9198592/train_acc=0.507_test_acc=0.596.pt"))
-        model.load_state_dict(torch.load(args.checkpoints))
+    # if args.checkpoints is not None:
+    #     model.load_state_dict(torch.load(args.checkpoints))
     loss_func = CrossEntropyLoss()
-    # optimizer = Adam(model.parameters(), lr=lr)
-    optimizer = AdamW(model.parameters(), lr=lr, weight_decay=0.0001, eps=1e-8)
 
-    test_split = 0.2
     utils.set_seed(12345)
-    # random_seed = 23456
-    save_to_test = False
+    test_split = 0.2
+    shuffle_dataset = True
 
-    if args.dataset == "AugmentedReDWeb":
-        if args.batch_size != 1:
-            dataset = AugmentedReDWeb(normalize_dataset=args.normalize_dataset, size=(224, 224))
-        else:
-            dataset = AugmentedReDWeb(normalize_dataset=args.normalize_dataset)
-    # elif args.dataset == "AugmentedMiddlebury":
-    #     dataset = AugmentedMiddlebury(normalize_dataset=args.normalize_dataset, size=(448, 448))
+    if args.dataset == "test-augmentedredweb":
+        dataset = TestAugmentedReDWeb(normalize_dataset=args.normalize_dataset)
+    elif args.dataset == "test-flowredweb":
+        dataset = TestFlowReDWeb(normalize_dataset=args.normalize_dataset)
+    elif args.dataset == "test-vemredweb":
+        dataset = TestVEMReDWeb(normalize_dataset=args.normalize_dataset)
+    elif args.dataset == "augmenteddiml":
+        dataset = AugmentedDIML(normalize_dataset=args.normalize_dataset)
+    elif args.dataset == "flowdiml":
+        dataset = FlowDIML(normalize_dataset=args.normalize_dataset)
+    elif args.dataset == "vemdiml":
+        dataset = VEMDIML(normalize_dataset=args.normalize_dataset)
+    elif args.dataset == "merge":
+        ar = TestAugmentedReDWeb(normalize_dataset=args.normalize_dataset, crop_size=(384, 512))
+        ad = AugmentedDIML(normalize_dataset=args.normalize_dataset, crop_size=(384, 512))
+        dataset = ar + ad
     dataset_size = len(dataset)
-    
+    print(f"train with {dataset_size} images")
+
     indices = list(range(dataset_size))
     split = int(np.floor(test_split * dataset_size))
     
-    shuffle_dataset = True
 
     train_indices, test_indices = indices[split:dataset_size], indices[:split]
     train_sampler = SubsetRandomSampler(train_indices)
@@ -162,27 +167,29 @@ if __name__ == "__main__":
 
     train_loader = DataLoader(dataset,
                               batch_size=args.batch_size,
-                              # collate_fn=my_collate,
                               num_workers=0,
                               sampler=train_sampler)
     test_loader = DataLoader(dataset,
                              batch_size=args.batch_size,
-                              # collate_fn=my_collate,
                              num_workers=0,
                              sampler=test_sampler)
 
+    optimizer = AdamW(model.parameters(), lr=args.lr, weight_decay=0.0001, eps=1e-8)
+    scheduler = lr_scheduler.OneCycleLR(optimizer, args.lr, total_steps=args.max_epoch * len(train_sampler) +100,
+        pct_start=0.05, cycle_momentum=False, anneal_strategy='linear')
 
     for epoch in range(args.max_epoch):
+        print(f"epoch {epoch + 1} / {args.max_epoch}:")
         total = 0
         correct = 0
         confusion_matrix = np.zeros((args.num_classes, args.num_classes))
         model.train()
         for batch_idx, (_, _, flow, depth, label) in enumerate(tqdm(train_loader)):
-            flow = flow.to(device)
-            depth = depth.to(device)
+            flow = flow.float().to(device)
+            depth = depth.float().to(device)
             label = label.to(device)
             flow = flow * (depth != 100).repeat(1, 2, 1, 1)
-            flow_depth = torch.cat((flow, depth), axis=1).float().to(device)
+            flow_depth = torch.cat((flow, depth), axis=1).to(device)
 
             optimizer.zero_grad()
             if not args.use_depth_in_classifier:
@@ -192,6 +199,7 @@ if __name__ == "__main__":
             loss1 = loss_func(predict1, label)
             loss1.backward()
             optimizer.step()
+            scheduler.step()
 
             predict1 = torch.nn.Softmax(dim=1)(predict1)
             total = total + args.batch_size
@@ -204,6 +212,7 @@ if __name__ == "__main__":
 
         train_acc = correct / total
         print(f"    train accuracy = {correct} / {total} = {correct / total}")
+        print(f"last lr = {scheduler.get_last_lr()[0]}")
         print(f"{confusion_matrix = }")
 
         total = 0
@@ -211,11 +220,11 @@ if __name__ == "__main__":
         confusion_matrix = np.zeros((args.num_classes, args.num_classes))
         model.eval()
         for batch_idx, (_, _, flow, depth, label) in enumerate(tqdm(test_loader)):
-            flow = flow.to(device)
-            depth = depth.to(device)
+            flow = flow.float().to(device)
+            depth = depth.float().to(device)
             label = label.to(device)
             flow = flow * (depth != 100).repeat(1, 2, 1, 1)
-            flow_depth = torch.cat((flow, depth), axis=1).float().to(device)
+            flow_depth = torch.cat((flow, depth), axis=1).to(device)
 
             if not args.use_depth_in_classifier:
                 predict1 = model(flow)

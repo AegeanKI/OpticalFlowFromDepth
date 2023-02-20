@@ -123,8 +123,9 @@ class DIML(data.Dataset):
 
 
 class AugmentedDataset(data.Dataset):
-    def __init__(self, normalize_dataset=True, size=None):
+    def __init__(self, normalize_dataset=True, size=None, crop_size=None):
         self.normalize_dataset = normalize_dataset
+        self.crop_size = crop_size
 
         if size is not None:
             self.transform = T.Compose([
@@ -149,6 +150,7 @@ class AugmentedDataset(data.Dataset):
             group_img_depth_flow = group_npz_file["img_depth_flow"]
         except:
             return self.__getitem__((idx + 1) % self.__len__())
+
         if random_group == 0:
             img0 = group_img_depth_flow[0:3]
             img0_depth = group_img_depth_flow[3:4]
@@ -184,6 +186,15 @@ class AugmentedDataset(data.Dataset):
         else:
             flow = img_depth_flow[0:2]
             img1 = img_depth_flow[4:7]
+
+        if self.crop_size is not None:
+            y0 = np.random.randint(0, h - self.crop_size[0] + 1)
+            x0 = np.random.randint(0, w - self.crop_size[1] + 1)
+
+            img0 = img0[:, y0:y0+self.crop_size[0], x0:x0+self.crop_size[1]]
+            img1 = img1[:, y0:y0+self.crop_size[0], x0:x0+self.crop_size[1]]
+            img0_depth = img0_depth[:, y0:y0+self.crop_size[0], x0:x0+self.crop_size[1]]
+            flow = flow[:, y0:y0+self.crop_size[0], x0:x0+self.crop_size[1]]
 
         label_type = max(0, augment_flow_type - 4)
         # label = utils.one_hot(label_type, num_classes)
@@ -260,8 +271,8 @@ class DepthToFlowDataset(data.Dataset):
 
 
 class AugmentedDIML(AugmentedDataset):
-    def __init__(self, normalize_dataset=True, size=None):
-        super().__init__(normalize_dataset, size)
+    def __init__(self, normalize_dataset=True, size=None, crop_size=None):
+        super().__init__(normalize_dataset=normalize_dataset, size=size, crop_size=crop_size)
 
     def __len__(self):
         # return 1505
@@ -349,8 +360,8 @@ class TestVEMReDWeb(DepthToFlowDataset):
 
 
 class TestAugmentedReDWeb(AugmentedDataset):
-    def __init__(self, normalize_dataset=True, size=None):
-        super().__init__(normalize_dataset, size)
+    def __init__(self, normalize_dataset=True, size=None, crop_size=None):
+        super().__init__(normalize_dataset=normalize_dataset, size=size, crop_size=crop_size)
 
     def __len__(self):
         # return 3600
