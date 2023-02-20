@@ -429,6 +429,15 @@ def build_train_dataset(args):
         aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
         train_dataset = TestRAFTVEMReDWeb(aug_params, split='training')
 
+    elif args.stage == "mixed":
+        print(f"{args = }")
+        # aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
+        aug_params = {'crop_size': args.image_size, 'min_scale': -0.2, 'max_scale': 0.4, 'do_flip': True} # kitti
+        ar = TestRAFTAugmentedReDWeb(aug_params, split='training')
+        ad = RAFTAugmentedDIML(aug_params, split='training')
+        train_dataset = ar + ad
+
+
 
     else:
         raise ValueError(f'stage {args.stage} is not supported')
