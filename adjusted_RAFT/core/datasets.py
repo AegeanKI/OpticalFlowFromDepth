@@ -13,7 +13,8 @@ import os.path as osp
 
 from utils import frame_utils
 from utils.augmentor import FlowAugmentor, SparseFlowAugmentor
-from my_dataloader import AugmentedReDWeb, AugmentedDIML, TestAugmentedReDWeb, FlowDIML, TestFlowReDWeb
+# from my_dataloader import AugmentedReDWeb, AugmentedDIML, TestAugmentedReDWeb, FlowDIML, TestFlowReDWeb
+from my_dataloader import AugmentedDIML, TestAugmentedReDWeb, FlowDIML, TestFlowReDWeb
 from my_dataloader import VEMDIML, TestVEMReDWeb
 
 class FlowDataset(data.Dataset):

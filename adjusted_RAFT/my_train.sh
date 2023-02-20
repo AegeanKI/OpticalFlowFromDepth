@@ -301,24 +301,45 @@ mkdir -p checkpoints
 #     --mixed_precision
 
 
-# Feb 10
-# check test VEMReDWeb, VEMDIML
-name=raft-vd+s-c-2e5-1
-gpu=3
+# Feb 15 eva3
+# # check VEMDIML, FlowDIML again
+# # gpu 4 VEMDIML, gpu 5 FlowDIML
+# name=raft-fd+s-noc
+# gpu=5
 
-python -u train.py --name ${name} --stage vemdiml \
+# python -u train.py --name ${name} --stage flowdiml \
+#     --validation kitti \
+#     --gpus ${gpu} --num_steps 120000 --batch_size 8 --lr 0.00025 --val_freq 1000 \
+#     --image_size 368 496 --wdecay 0.0001 \
+#     --mixed_precision
+#     # --add_classifier \
+#     # --classifier_checkpoint_timestamp 1672944585.6048822 \
+#     # --classifier_checkpoint_train_acc 0.675 \
+#     # --classifier_checkpoint_test_acc 0.804 \
+#     # --classify_loss_weight_init 1 \
+#     # --classify_loss_weight_increase -0.00002 \
+#     # --max_classify_loss_weight 1 \
+#     # --min_classify_loss_weight 0 \
+
+# Feb 15 eva3
+# check VEMReDWeb, FlowReDWeb again
+# gpu 6 VEMReDWeb, gpu 7 FlowReDWeb
+name=raft-test-fr+s-noc
+gpu=7
+
+python -u train.py --name ${name} --stage test-flowredweb \
     --validation kitti \
     --gpus ${gpu} --num_steps 120000 --batch_size 8 --lr 0.00025 --val_freq 1000 \
     --image_size 368 496 --wdecay 0.0001 \
-    --add_classifier \
-    --classifier_checkpoint_timestamp 1672944585.6048822 \
-    --classifier_checkpoint_train_acc 0.675 \
-    --classifier_checkpoint_test_acc 0.804 \
-    --classify_loss_weight_init 1 \
-    --classify_loss_weight_increase -0.00002 \
-    --max_classify_loss_weight 1 \
-    --min_classify_loss_weight 0 \
     --mixed_precision
+    # --add_classifier \
+    # --classifier_checkpoint_timestamp 1672944585.6048822 \
+    # --classifier_checkpoint_train_acc 0.675 \
+    # --classifier_checkpoint_test_acc 0.804 \
+    # --classify_loss_weight_init 1 \
+    # --classify_loss_weight_increase -0.00002 \
+    # --max_classify_loss_weight 1 \
+    # --min_classify_loss_weight 0 \
 
 
 
