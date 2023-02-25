@@ -15,8 +15,8 @@ class ReDWeb(data.Dataset):
         self.dataset_dir = dataset_dir
         self.img_paths = glob.glob(f"{dataset_dir}/Imgs/*")
         random.shuffle(self.img_paths)
-        with open("ReDWeb_img_paths.pkl", "rb") as fp:
-            self.img_paths = pickle.load(fp)
+        # with open("ReDWeb_img_paths.pkl", "rb") as fp:
+        #     self.img_paths = pickle.load(fp)
         if num_images and len(self.img_paths) > num_images:
             self.img_paths = self.img_paths[:num_images]
 
@@ -26,6 +26,26 @@ class ReDWeb(data.Dataset):
     def __getitem__(self, idx):
         img_path = self.img_paths[idx]
         depth_path = img_path.replace("jpg", "png").replace("Imgs", "RDs")
+        img, img_size = utils.get_img(img_path)
+        depth, depth_size = utils.get_depth(depth_path)
+        if img_size != depth_size:
+            depth = T.Resize(img_size)(depth)
+
+        return img, depth
+
+class FiltedReDWeb(data.Dataset):
+    def __init__(self, dataset_dir, num_images=None):
+        self.dataset_dir = dataset_dir
+        with open("filted_ReDWeb_list.txt", "r") as f:
+            self.img_names = f.readlines()
+
+    def __len__(self):
+        return len(self.img_names)
+
+    def __getitem__(self, idx):
+        img_name = self.img_names[idx][:-1].split(".")[0]
+        img_path = f"{self.dataset_dir}/Imgs/{img_name}.jpg"
+        depth_path = f"{self.dataset_dir}/RDs/{img_name}.png"
         img, img_size = utils.get_img(img_path)
         depth, depth_size = utils.get_depth(depth_path)
         if img_size != depth_size:
@@ -65,22 +85,26 @@ class ReDWeb(data.Dataset):
 class DIML(data.Dataset):
     def __init__(self, dataset_dir, num_images=None, load=False):
         self.dataset_dir = dataset_dir
-        self.img_paths = glob.glob(f"{dataset_dir}/train/LR/outleft/*")
-        random.shuffle(self.img_paths)
-        with open("DIML_img_paths.pkl", "rb") as fp:
-            self.img_paths = pickle.load(fp)
-        if num_images and len(self.img_paths) > num_images:
-            self.img_paths = self.img_paths[:num_images]
+        with open("DIML_list.txt", "r") as f:
+            self.img_names = f.readlines()
+        # self.img_paths = glob.glob(f"{dataset_dir}/train/LR/outleft/*")
+        # random.shuffle(self.img_paths)
+        # # with open("DIML_img_paths.pkl", "rb") as fp:
+        # #     self.img_paths = pickle.load(fp)
+        # if num_images and len(self.img_paths) > num_images:
+        #     self.img_paths = self.img_paths[:num_images]
 
     def __len__(self):
-        return len(self.img_paths)
+        return len(self.img_names)
 
 
     def __getitem__(self, idx):
         # print(f"{idx = }")
-        img0_path = self.img_paths[idx]
-        img1_path = img0_path.replace("outleft", "outright")
-        disp0_path = img0_path.replace("outleft", "disparity")
+        img_name = self.img_names[idx][:-1].split(".")[0]
+        print(f"{img_name = }")
+        img0_path = f"{self.dataset_dir}/train/LR/outleft/{img_name}.png"
+        img1_path = f"{self.dataset_dir}/train/LR/outright/{img_name}.png"
+        disp0_path = f"{self.dataset_dir}/train/LR/disparity/{img_name}.png"
 
         img0, img_size = utils.get_img(img0_path)
         img1, _ = utils.get_img(img1_path)

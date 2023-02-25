@@ -6,7 +6,7 @@ import numpy as np
 import torch
 import random
 import math
-import skimage
+# import skimage
 from bilateral_filter import sparse_bilateral_filtering
 from threading import Thread
 import os
@@ -47,11 +47,8 @@ def get_stereo_img(path_left, path_right):
 def get_depth(path, normalize=True):
     depth = cv2.imread(path, cv2.IMREAD_GRAYSCALE).astype(float)
 
-    depth = 1.0 / (depth + 0.005)
-    # depth = 1.0 / depth
     if normalize:
-        depth = normalize_depth(depth)
-    depth = 1.0 / depth
+        depth = 1. / normalize_depth(1. / (depth + 0.005))
 
     h, w = depth.shape
     depth = torch.from_numpy(depth).unsqueeze(0)
@@ -87,10 +84,10 @@ def get_disparity(path):
 #     del h, w
 #     return disparity
 
-def one_hot(idx, dim):
-    res = torch.zeros(dim)
-    res[idx] = 1
-    return res
+# def one_hot(idx, dim):
+#     res = torch.zeros(dim)
+#     res[idx] = 1
+#     return res
 
 
 def get_random(random_range, random_begin, random_sign=True):
@@ -146,11 +143,8 @@ def inpaint(img, valid, collision):
     # cv2.imwrite(f"test_output/test_masks/P.png", P * 255)
     # cv2.imwrite(f"test_output/test_masks/H_prime.png", H_prime * 255)
     img_np = img.permute(1, 2, 0).cpu().numpy().astype(np.uint8)
-    inpaint_img = cv2.inpaint(img_np, 1 - H_prime, 3, cv2.INPAINT_TELEA)
-    if inpaint_img.ndim == 2:
-        inpaint_img = torch.tensor(inpaint_img).unsqueeze(0).to(img.get_device())
-    else:
-        inpaint_img = torch.tensor(inpaint_img).permute(2, 0, 1).to(img.get_device())
+    inpaint_img = cv2.inpaint(img_np, 1 - H_prime, 3, cv2.INPAINT_TELEA).astype(np.float32)
+    inpaint_img = torch.tensor(inpaint_img).permute(2, 0, 1).to(img.get_device())
     return inpaint_img
 
 # def batch_save_data(batch_idx, output_dir, to_save_data):

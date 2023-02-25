@@ -17,8 +17,8 @@ from bilateral_filter import sparse_bilateral_filtering
 from my_cuda.fw import FW
 from collections import defaultdict
 import random
-from argparse import ArgumentParser, BooleanOptionalAction
-from dataloader import ReDWeb, ETH3D, DIML
+from argparse import ArgumentParser
+from dataloader import ReDWeb, DIML, FiltedReDWeb
 import copy
 
 class SpecialFlow(nn.Module):
@@ -133,13 +133,15 @@ def augment_flow_small(img0, img0_depth, img1, img1_depth,
         augment_img1_flow = cf(flow01, back_flow01, special_flow, img1_depth)
 
         img0_all = torch.cat((img0, img0_depth), axis=0)
-        augment_img0_all, invalid, collision = fw(img0_all, special_flow, img0_depth)
+        augment_img0_all, valid, collision = fw(img0_all, special_flow, img0_depth)
         augment_img0 = augment_img0_all[0:3]
+        augment_img0 = utils.inpaint(augment_img0, valid, collision)
         augment_img0_depth = augment_img0_all[3:4]
         augment_img0_depth = utils.fix_warped_depth(augment_img0_depth)
         img1_all = torch.cat((img1, img1_depth), axis=0)
-        augment_img1_all, invalid, collision = fw(img1_all, special_flow, img1_depth)
+        augment_img1_all, valid, collision = fw(img1_all, special_flow, img1_depth)
         augment_img1 = augment_img1_all[0:3]
+        augment_img1 = utils.inpaint(augment_img1, valid, collision)
         augment_img1_depth = augment_img1_all[3:4]
         augment_img1_depth = utils.fix_warped_depth(augment_img1_depth)
 
@@ -220,13 +222,15 @@ def augment_flow(img0, img0_depth, img1, img1_depth,
         augment_img1_flow = cf(flow01, back_flow01, special_flow, img1_depth)
 
         img0_all = torch.cat((img0, img0_depth), axis=0)
-        augment_img0_all, invalid, collision = fw(img0_all, special_flow, img0_depth)
+        augment_img0_all, valid, collision = fw(img0_all, special_flow, img0_depth)
         augment_img0 = augment_img0_all[0:3]
+        augment_img0 = utils.inpaint(augment_img0, valid, collision)
         augment_img0_depth = augment_img0_all[3:4]
         augment_img0_depth = utils.fix_warped_depth(augment_img0_depth)
         img1_all = torch.cat((img1, img1_depth), axis=0)
-        augment_img1_all, invalid, collision = fw(img1_all, special_flow, img1_depth)
+        augment_img1_all, valid, collision = fw(img1_all, special_flow, img1_depth)
         augment_img1 = augment_img1_all[0:3]
+        augment_img1 = utils.inpaint(augment_img1, valid, collision)
         augment_img1_depth = augment_img1_all[3:4]
         augment_img1_depth = utils.fix_warped_depth(augment_img1_depth)
 
@@ -259,8 +263,8 @@ def augment_flow(img0, img0_depth, img1, img1_depth,
         # if augment_flow_type >= 4.:
         #     mask_all = mask_all * -1 + 1 # xor for float
         # img_mask, depth_mask, flow_mask = mask_all[:, 0:3], mask_all[:, 3:4], mask_all[:, 4:6]
-        # mask_all_fw, invalid, collision = fw(mask_all, flow01, img0_depth)
-        # mask_all_bf, invalid, collision = fw(mask_all, back_flow01, img1_depth)
+        # mask_all_fw, valid, collision = fw(mask_all, flow01, img0_depth)
+        # mask_all_bf, valid, collision = fw(mask_all, back_flow01, img1_depth)
         # img_mask_fw, depth_mask_fw, flow_mask_fw = mask_all_fw[:, 0:3], mask_all_fw[:, 3:4], mask_all_fw[:, 4:6]
         # img_mask_bf, depth_mask_bf, flow_mask_bf = mask_all_bf[:, 0:3], mask_all_bf[:, 3:4], mask_all_bf[:, 4:6]
 
@@ -317,6 +321,7 @@ def augment_flow(img0, img0_depth, img1, img1_depth,
 
         # print(f"{img0.dtype = }")
         # print(f"{img1.dtype = }")
+
         augment_img0 = augment_img_func(img0)
         augment_img1 = augment_img_func(img1)
 
@@ -414,7 +419,7 @@ class Convert():
     @staticmethod
     def disparity_to_depth(disparity):
         B, f = Plausible.B(), Plausible.f()
-        depth = B * f / (disparity + 0.25)
+        depth = B * f / (disparity + 0.005)
         # depth = 193.001 * f / (disparity + 131.111)
         # depth[depth > 100] = 100
 
@@ -478,7 +483,7 @@ class ConcatFlow(nn.Module):
     
     def forward(self, flowAB, back_flowAB, flowBC, imgB_depth):
         with torch.no_grad():
-            concat_flow, invalid, collision = self.fw(flowBC, back_flowAB, imgB_depth)
+            concat_flow, valid, collision = self.fw(flowBC, back_flowAB, imgB_depth)
         concat_flow = concat_flow + flowAB
         return concat_flow.to(self.device)
 
@@ -490,7 +495,7 @@ class BackFlow(nn.Module):
 
     def forward(self, flowAB, imgA_depth):
         with torch.no_grad():
-            back_flow, invalid, collision = self.fw(flowAB, flowAB, imgA_depth)
+            back_flow, valid, collision = self.fw(flowAB, flowAB, imgA_depth)
         back_flow = back_flow * -1.
         return back_flow.to(self.device)
 
@@ -507,7 +512,7 @@ class PreprocessPlusAugment(nn.Module):
         self.bf.eval()
 
     # def forward(self, img0, img0_depth, output_dir):
-    def forward(self, datas, output_dir, is_stereo=False):
+    def forward(self, datas, output_dir, is_stereo=False, augment_small=False):
         start_preprocess_time = time.time()
         print(f"{output_dir = }")
 
@@ -520,9 +525,10 @@ class PreprocessPlusAugment(nn.Module):
             disp0 = Convert.depth_to_disparity(img0_depth)
             flow01 = Convert.disparity_to_flow(disp0).to(self.device)
             img0_all = torch.cat((img0, img0_depth, flow01 * -1), axis=0) 
-            img0_all_fw, invalid, collision = self.fw(img0_all, flow01, img0_depth)
+            img0_all_fw, valid, collision = self.fw(img0_all, flow01, img0_depth)
             img0_all_fw = img0_all_fw.squeeze(0) 
             img1, img1_depth, back_flow01 = img0_all_fw[0:3], img0_all_fw[3:4], img0_all_fw[4:6]
+            img1 = utils.inpaint(img1, valid, collision)
             img1_depth = utils.fix_warped_depth(img1_depth)
         else:
             img0, img1, disp0, disp1 = datas
@@ -541,10 +547,11 @@ class PreprocessPlusAugment(nn.Module):
                 back_flow01 = Convert.disparity_to_flow(disp1, random_sign=True).to(device) * -1
             else:
                 img0_all = torch.cat((img0, img0_depth, flow01 * -1), axis=0) 
-                img0_all_fw, invalid, collision = self.fw(img0_all, flow01, img0_depth)
+                img0_all_fw, valid, collision = self.fw(img0_all, flow01, img0_depth)
                 img0_all_fw = img0_all_fw.squeeze(0)
                 img1, img1_depth, back_flow01 = img0_all_fw[0:3], img0_all_fw[3:4], img0_all_fw[4:6]
                 img1_depth = utils.fix_warped_depth(img1_depth)
+                img1 = utils.inpaint(img1, valid, collision)
 
         # unify mono: (img0, img0_depth), and stero: (img0, img0, disp0, disp1)
         # to (img0, img0_depth, flow01, back_flow01, img1, img1_depth)
@@ -553,14 +560,16 @@ class PreprocessPlusAugment(nn.Module):
         
         flow12 = Convert.depth_to_random_flow(img1_depth, self.device)
         img1_all = torch.cat((img1, img1_depth, flow12 * -1), axis=0) 
-        img1_all_fw, invalid, collision = self.fw(img1_all, flow12, img1_depth)
+        img1_all_fw, valid, collision = self.fw(img1_all, flow12, img1_depth)
         img1_all_fw = img1_all_fw.squeeze(0) 
         img2, img2_depth, back_flow12 = img1_all_fw[0:3], img1_all_fw[3:4], img1_all_fw[4:6]
+        img2 = utils.inpaint(img2, valid, collision)
         img2_depth = utils.fix_warped_depth(img2_depth)
 
         flow02 = self.cf(flow01, back_flow01, flow12, img1_depth)
         back_flow02 = self.bf(flow02, img0_depth)
-        concat_img, invalid, collision = self.fw(img0, flow02, img0_depth)
+        concat_img, valid, collision = self.fw(img0, flow02, img0_depth)
+        concat_img = utils.inpaint(concat_img, valid, collision)
 
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
@@ -622,12 +631,15 @@ class PreprocessPlusAugment(nn.Module):
             for augment_idx, augment_flow_type in enumerate([0, 5, 6, 7, 1, 5, 6, 7, 2, 5, 6, 7]):
             # for augment_idx, augment_flow_type in enumerate([0, 1, 2, 5, 6, 7]):
             # for augment_idx, augment_flow_type in enumerate([5, 6, 7]):
-                # set1, set2, _ = augment_flow(imgA, imgA_depth, imgB, imgB_depth, flowAB,
-                #                              back_flowAB, device=self.device,
-                #                              augment_flow_type=augment_flow_type)
-                set1, set2, _ = augment_flow_small(imgA, imgA_depth, imgB, imgB_depth, flowAB,
-                                             back_flowAB, device=self.device,
-                                             augment_flow_type=augment_flow_type)
+
+                if not augment_small:
+                    set1, set2, _ = augment_flow(imgA, imgA_depth, imgB, imgB_depth, flowAB,
+                                                 back_flowAB, device=self.device,
+                                                 augment_flow_type=augment_flow_type)
+                else:
+                    set1, set2, _ = augment_flow_small(imgA, imgA_depth, imgB, imgB_depth, flowAB,
+                                                 back_flowAB, device=self.device,
+                                                 augment_flow_type=augment_flow_type)
 
                 to_save_data1 = torch.cat([set1[i] for i in range(0, 4)], axis=0) # img0, img0_depth, flow01, back_flow01
                                                                                   #  0:3         3:4     4:6          6:8
@@ -657,8 +669,8 @@ class PreprocessPlusAugment(nn.Module):
                 # if not os.path.exists(set2_output_dir):
                 #     os.makedirs(set2_output_dir)
 
-                # set1_warped_img, invalid, collision = self.fw(set1[0], set1[2], set1[1])
-                # set2_warped_img, invalid, collision = self.fw(set2[0], set2[2], set2[1])
+                # set1_warped_img, _, _ = self.fw(set1[0], set1[2], set1[1])
+                # set2_warped_img, _, _ = self.fw(set2[0], set2[2], set2[1])
 
                 # cv2.imwrite(f"{set1_output_dir}/img0.png", set1[0].permute(1, 2, 0).cpu().numpy())
                 # plt.imsave(f"{set1_output_dir}/img0_depth.png", 1 / set1[1][0].cpu().numpy(), cmap="magma")
@@ -706,7 +718,6 @@ def read_args():
     parser = ArgumentParser()
 
     parser.add_argument('--dataset')
-    parser.add_argument('--max_epoch', default=1, type=int)
     parser.add_argument('--gpu', default=0, type=int)
     parser.add_argument('--split', default=1, type=int)
     parser.add_argument('--split_id', default=0, type=int)
@@ -717,34 +728,20 @@ def read_args():
 
 if __name__ == "__main__":
     args = read_args()
-    seed_mapping = {"ReDWeb": 0, "ETH3D": 10, "DIML": 30, "test_ReDWeb": 20}
-    utils.set_seed(12345 + args.split_id + seed_mapping[args.dataset])
+    seed_mapping = {"ReDWeb": 0, "ETH3D": 10, "DIML": 30, "test_ReDWeb": 20, "filted_ReDWeb": 40}
+    # utils.set_seed(12345 + args.split_id + seed_mapping[args.dataset])
     print(args)
 
-    is_stereo = False
-    if args.dataset == "ReDWeb":
-        dataset = ReDWeb("datasets/ReDWeb_V1/")
-        output_dirs = ["outputsD/ReDWeb_V1", "outputsB/ReDWeb_V1", "outputsC/ReDWeb_V1"] 
-    # elif args.dataset == "Middlebury":
-    #     dataset = Middlebury("datasets/Middlebury")
-    #     output_dirs = ["outputsA/Middlebury", "outputsB/Middlebury", "outputsC/Middlebury"]
-    #     is_stereo = True
-    elif args.dataset == "ETH3D":
-        dataset = ETH3D("datasets/ETH3D")
-        output_dirs = ["outputsA/ETH3D", "outputsB/ETH3D", "outputsC/ETH3D"] 
-        is_stereo = True
-    elif args.dataset == "DIML":
+    if args.dataset == "DIML":
         dataset = DIML("datasets/DIML")
-        output_dirs = ["outputsA/DIML", "outputsB/DIML", "outputsC/DIML"]
+        output_dir = "AugmentedDatasets/DIML"
         is_stereo = True
-    elif args.dataset == "test_ReDWeb":
-        dataset = ReDWeb("datasets/ReDWeb_V1/")
-        output_dirs = ["outputsD/test_ReDWeb_V1", "outputsB/test_ReDWeb_V1", "outputsC/test_ReDWeb_V1"] 
+    elif args.dataset == "filted_ReDWeb":
+        dataset = FiltedReDWeb("datasets/ReDWeb_V1")
+        output_dir = "AugmentedDatasets/filted_ReDWeb"
+        is_stereo = False
 
 
-    # EVERY_IMAGES_CHANGE_OUTPUT_DIR = len(dataset) / 3
-    EVERY_IMAGES_CHANGE_OUTPUT_DIR = int((1698 + 2) / 3)
-    # device = "cuda:1" if torch.cuda.is_available() else "cpu"
     device = f"cuda:{args.gpu}"
 
     ppa = PreprocessPlusAugment(device=device)
@@ -759,32 +756,22 @@ if __name__ == "__main__":
 
     resize = T.Resize((480, 640))
 
-    count = 0
-    for epoch_idx in range(args.max_epoch):
+    for epoch_idx, augment_small in enumerate([False, True]):
         for img_idx in range(start, end):
             print(f"{img_idx + 1} / {len(dataset)}: ")
             utils.set_seed(12345 + img_idx + epoch_idx * len(dataset))
             datas = dataset[img_idx]
-            img0, img0_depth = datas
-            _, h, w = img0.shape
-            if h < 350 or w < 350:
-                continue
 
-            img0 = resize(img0)
-            img0_depth = resize(img0_depth)
+            if args.dataset == "filted_ReDWeb":
+                img0, img0_depth = datas
+                img0 = resize(img0)
+                img0_depth = resize(img0_depth)
+                datas = (img0, img0_depth)
 
-            datas = (img0, img0_depth)
-
-            print(f"{count = }")
-            img_idx = count + 1264
-            # img_idx = count
-
-            output_dir = output_dirs[int(img_idx / EVERY_IMAGES_CHANGE_OUTPUT_DIR)]
+            # output_dir = output_dirs[int(img_idx / EVERY_IMAGES_CHANGE_OUTPUT_DIR)]
             if not os.path.exists(output_dir):
                 os.makedirs(output_dir)
-            ppa(datas, f"{output_dir}/{img_idx + 1698}", is_stereo)
-            count = count + 1
-        #     break
+            ppa(datas, f"{output_dir}/{img_idx + epoch_idx * len(dataset)}", is_stereo, augment_small)
         # break
     
     
