@@ -46,9 +46,7 @@ def get_stereo_img(path_left, path_right):
 
 def get_depth(path, normalize=True):
     depth = cv2.imread(path, cv2.IMREAD_GRAYSCALE).astype(float)
-
-    if normalize:
-        depth = 1. / normalize_depth(1. / (depth + 0.005))
+    depth = smooth_closer(depth)
 
     h, w = depth.shape
     depth = torch.from_numpy(depth).unsqueeze(0)
@@ -112,6 +110,11 @@ def normalize_depth(depth):
     # depth = (depth - depth_min) * 0.999 / (depth_max - depth_min) + 0.001    # [0.001, 1]
     return depth
 
+def smooth_closer(depth):
+    depth[depth > 240] = 240
+    depth = 1 / (255 - depth)
+    return depth
+
 def fix_warped_depth(depth):
     depth[depth == 0] = 100
     depth[depth > 99.5] = 100
@@ -124,11 +127,6 @@ def color_flow(flow):
     flow_16bit = cv2.cvtColor(flow_16bit, cv2.COLOR_BGR2RGB)
     flow_color = flow_colors.flow_to_color(flow[0].numpy(), convert_to_bgr=True)
     return flow_16bit, flow_color
-
-
-# def inpaint_img(img, masks):
-#     img = cv2.inpaint(img, 1 - masks["H"], 3, cv2.INPAINT_TELEA)
-#     return img
 
 def inpaint(img, valid, collision):
     H = valid[0].cpu().numpy()

@@ -399,14 +399,12 @@ class Convert():
     @staticmethod
     def depth_to_disparity(depth):
         # _, _, w = depth.shape
-        # s = utils.get_random(175, 50, random_sign=False)
-       
-        # disparity = s * (1 / depth) * depth.max()
+        s = utils.get_random(0.3, 0.8, random_sign=False)
         B, f = Plausible.B(), Plausible.f()
-        # disparity = B * f / depth - 0.25
-        disparity = B * f / depth
-        # del s
+
+        disparity = s * B * f / depth
         del B, f
+        del s
         return disparity
 
     @staticmethod
@@ -420,8 +418,6 @@ class Convert():
     def disparity_to_depth(disparity):
         B, f = Plausible.B(), Plausible.f()
         depth = B * f / (disparity + 0.005)
-        # depth = 193.001 * f / (disparity + 131.111)
-        # depth[depth > 100] = 100
 
         del B, f
         return depth
@@ -721,6 +717,7 @@ def read_args():
     parser.add_argument('--gpu', default=0, type=int)
     parser.add_argument('--split', default=1, type=int)
     parser.add_argument('--split_id', default=0, type=int)
+    parser.add_argument('--range', default=2, type=int)
 
     args = parser.parse_args()
     return args
@@ -755,10 +752,14 @@ if __name__ == "__main__":
     print(f"{len(dataset) = }, {is_stereo = }, {start = }, {end = }")
 
     resize = T.Resize((480, 640))
-
     for epoch_idx, augment_small in enumerate([False, True]):
+        if args.range == 0 and epoch_idx == 1:
+            break
+        if args.range == 1 and epoch_idx == 0:
+            continue
+
         for img_idx in range(start, end):
-            print(f"{img_idx + 1} / {len(dataset)}: ")
+            print(f"{img_idx + 1} / {len(dataset)}: {augment_small = }")
             utils.set_seed(12345 + img_idx + epoch_idx * len(dataset))
             datas = dataset[img_idx]
 
@@ -771,7 +772,9 @@ if __name__ == "__main__":
             # output_dir = output_dirs[int(img_idx / EVERY_IMAGES_CHANGE_OUTPUT_DIR)]
             if not os.path.exists(output_dir):
                 os.makedirs(output_dir)
+
             ppa(datas, f"{output_dir}/{img_idx + epoch_idx * len(dataset)}", is_stereo, augment_small)
+            # break
         # break
     
     

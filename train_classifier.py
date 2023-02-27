@@ -26,7 +26,7 @@ from tqdm import tqdm
 import os
 import matplotlib.pyplot as plt
 
-from argparse import ArgumentParser, BooleanOptionalAction
+from argparse import ArgumentParser
 
 # def get_loaders(batch_size):
 #     train_dataset = dCOCOLoader("train")
@@ -75,21 +75,21 @@ def read_args():
     parser = ArgumentParser()
 
     # parser.add_argument('--mono', default=False, type=bool, action=BooleanOptionalAction)
-    parser.add_argument('--use_small', default=False, type=bool, action=BooleanOptionalAction)
+    parser.add_argument('--use_small', default=False, action='store_true')
     parser.add_argument('--dropout', type=float)
     parser.add_argument('--output_dim', type=int)
-    parser.add_argument('--use_depth_in_classifier', default=False, action=BooleanOptionalAction)
-    parser.add_argument('--use_dropout_in_encoder', default=False, type=bool, action=BooleanOptionalAction)
-    parser.add_argument('--use_dropout_in_classify', default=False, type=bool, action=BooleanOptionalAction)
+    parser.add_argument('--use_depth_in_classifier', action='store_true')
+    parser.add_argument('--use_dropout_in_encoder', action='store_true')
+    parser.add_argument('--use_dropout_in_classify', action='store_true')
     # parser.add_argument('--use_pooling', default=True, type=bool, action=BooleanOptionalAction)
-    parser.add_argument('--use_average_pooling', default=False, type=bool, action=BooleanOptionalAction)
+    parser.add_argument('--use_average_pooling', action='store_true')
     parser.add_argument('--gpu', type=int)
     parser.add_argument('--dataset')
     parser.add_argument('--batch_size', default=8, type=int)
     parser.add_argument('--lr', default=0.0002, type=float)
     parser.add_argument('--max_epoch', default=100, type=int)
     parser.add_argument('--num_classes', default=4, type=int)
-    parser.add_argument('--normalize_dataset', default=True, type=bool, action=BooleanOptionalAction)
+    parser.add_argument('--not_normalize_dataset', action='store_true')
     parser.add_argument('--checkpoints')
         
     args = parser.parse_args()
@@ -138,21 +138,22 @@ if __name__ == "__main__":
     test_split = 0.2
     shuffle_dataset = True
 
+    normalize_dataset = not args.not_normalize_dataset
     if args.dataset == "test-augmentedredweb":
-        dataset = TestAugmentedReDWeb(normalize_dataset=args.normalize_dataset)
+        dataset = TestAugmentedReDWeb(normalize_dataset=normalize_dataset)
     elif args.dataset == "test-flowredweb":
-        dataset = TestFlowReDWeb(normalize_dataset=args.normalize_dataset)
+        dataset = TestFlowReDWeb(normalize_dataset=normalize_dataset)
     elif args.dataset == "test-vemredweb":
-        dataset = TestVEMReDWeb(normalize_dataset=args.normalize_dataset)
+        dataset = TestVEMReDWeb(normalize_dataset=normalize_dataset)
     elif args.dataset == "augmenteddiml":
-        dataset = AugmentedDIML(normalize_dataset=args.normalize_dataset)
+        dataset = AugmentedDIML(normalize_dataset=normalize_dataset)
     elif args.dataset == "flowdiml":
-        dataset = FlowDIML(normalize_dataset=args.normalize_dataset)
+        dataset = FlowDIML(normalize_dataset=normalize_dataset)
     elif args.dataset == "vemdiml":
-        dataset = VEMDIML(normalize_dataset=args.normalize_dataset)
-    elif args.dataset == "merge":
-        ar = TestAugmentedReDWeb(normalize_dataset=args.normalize_dataset, crop_size=(384, 512))
-        ad = AugmentedDIML(normalize_dataset=args.normalize_dataset, crop_size=(384, 512))
+        dataset = VEMDIML(normalize_dataset=normalize_dataset)
+    elif args.dataset == "mixed":
+        ar = TestAugmentedReDWeb(normalize_dataset=normalize_dataset, crop_size=(384, 512))
+        ad = AugmentedDIML(normalize_dataset=normalize_dataset, crop_size=(384, 512))
         dataset = ar + ad
     dataset_size = len(dataset)
     print(f"train with {dataset_size} images")
@@ -175,7 +176,7 @@ if __name__ == "__main__":
                              sampler=test_sampler)
 
     optimizer = AdamW(model.parameters(), lr=args.lr, weight_decay=0.0001, eps=1e-8)
-    scheduler = lr_scheduler.OneCycleLR(optimizer, args.lr, total_steps=args.max_epoch * len(train_sampler) +100,
+    scheduler = lr_scheduler.OneCycleLR(optimizer, args.lr, total_steps=args.max_epoch * len(train_sampler)+20,
         pct_start=0.05, cycle_momentum=False, anneal_strategy='linear')
 
     for epoch in range(args.max_epoch):
@@ -184,12 +185,34 @@ if __name__ == "__main__":
         correct = 0
         confusion_matrix = np.zeros((args.num_classes, args.num_classes))
         model.train()
-        for batch_idx, (_, _, flow, depth, label) in enumerate(tqdm(train_loader)):
+        # for batch_idx, (_, _, flow, depth, label) in enumerate(tqdm(train_loader)):
+        for batch_idx, (img0, img1, flow, depth, label) in enumerate(tqdm(train_loader)):
             flow = flow.float().to(device)
             depth = depth.float().to(device)
             label = label.to(device)
             flow = flow * (depth != 100).repeat(1, 2, 1, 1)
             flow_depth = torch.cat((flow, depth), axis=1).to(device)
+
+            # print(f"{img0.shape =}")
+            # print(f"{flow.shape =}")
+            # import os
+            # group_output_dir = "test_output/test_in_classifier"
+            # if not os.path.exists(group_output_dir):
+            #     os.makedirs(group_output_dir)
+            # img0 = img0[0]
+            # img1 = img1[0]
+            # img0_depth = depth[0]
+            # flow01 = flow[0]
+            # fw = FW(device).to(device)
+            # cv2.imwrite(f"{group_output_dir}/img0.png", img0.permute(1, 2, 0).cpu().numpy())
+            # plt.imsave(f"{group_output_dir}/img0_depth.png", 1 / img0_depth[0].cpu().numpy(), cmap="magma")
+            # cv2.imwrite(f"{group_output_dir}/img1.png", img1.permute(1, 2, 0).cpu().numpy())
+            # cv2.imwrite(f"{group_output_dir}/flow01.png", utils.color_flow(flow01.permute(1, 2, 0).unsqueeze(0).cpu())[1])
+
+            # warped_img1, _, _ = fw(img0.to(device), flow01, img0_depth)
+            # print(f"{img0.dtype = }")
+            # cv2.imwrite(f"{group_output_dir}/warped_img1.png", warped_img1.permute(1, 2, 0).cpu().numpy())
+            # sys.exit()
 
             optimizer.zero_grad()
             if not args.use_depth_in_classifier:

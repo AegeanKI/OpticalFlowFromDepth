@@ -44,6 +44,7 @@ class FiltedReDWeb(data.Dataset):
 
     def __getitem__(self, idx):
         img_name = self.img_names[idx][:-1].split(".")[0]
+        print(f"{img_name = }")
         img_path = f"{self.dataset_dir}/Imgs/{img_name}.jpg"
         depth_path = f"{self.dataset_dir}/RDs/{img_name}.png"
         img, img_size = utils.get_img(img_path)
@@ -87,12 +88,6 @@ class DIML(data.Dataset):
         self.dataset_dir = dataset_dir
         with open("DIML_list.txt", "r") as f:
             self.img_names = f.readlines()
-        # self.img_paths = glob.glob(f"{dataset_dir}/train/LR/outleft/*")
-        # random.shuffle(self.img_paths)
-        # # with open("DIML_img_paths.pkl", "rb") as fp:
-        # #     self.img_paths = pickle.load(fp)
-        # if num_images and len(self.img_paths) > num_images:
-        #     self.img_paths = self.img_paths[:num_images]
 
     def __len__(self):
         return len(self.img_names)
@@ -147,9 +142,12 @@ class DIML(data.Dataset):
 
 
 class AugmentedDataset(data.Dataset):
-    def __init__(self, normalize_dataset=True, size=None, crop_size=None):
+    def __init__(self, normalize_dataset=True, size=None, crop_size=None, do_flip=True):
         self.normalize_dataset = normalize_dataset
         self.crop_size = crop_size
+        self.do_flip = do_flip
+        self.h_flip_prob = 0.5
+        self.v_flip_prob = 0.1
 
         if size is not None:
             self.transform = T.Compose([
@@ -211,6 +209,21 @@ class AugmentedDataset(data.Dataset):
             flow = img_depth_flow[0:2]
             img1 = img_depth_flow[4:7]
 
+        if self.do_flip:
+            if np.random.rand() < self.h_flip_prob:
+                img0 = torch.flip(img0, (2,))
+                img1 = torch.flip(img1, (2,))
+                img0_depth = torch.flip(img0_depth, (2,))
+                flow = torch.flip(flow, (2,))
+                flow[0] = flow[0] * -1.0
+            
+            if np.random.rand() < self.v_flip_prob:
+                img0 = torch.flip(img0, (1,))
+                img1 = torch.flip(img1, (1,))
+                img0_depth = torch.flip(img0_depth, (1,))
+                flow = torch.flip(flow, (1,))
+                flow[1] = flow[1] * -1.0
+
         if self.crop_size is not None:
             y0 = np.random.randint(0, h - self.crop_size[0] + 1)
             x0 = np.random.randint(0, w - self.crop_size[1] + 1)
@@ -219,6 +232,7 @@ class AugmentedDataset(data.Dataset):
             img1 = img1[:, y0:y0+self.crop_size[0], x0:x0+self.crop_size[1]]
             img0_depth = img0_depth[:, y0:y0+self.crop_size[0], x0:x0+self.crop_size[1]]
             flow = flow[:, y0:y0+self.crop_size[0], x0:x0+self.crop_size[1]]
+
 
         label_type = max(0, augment_flow_type - 4)
         # label = utils.one_hot(label_type, num_classes)
@@ -303,8 +317,9 @@ class AugmentedDIML(AugmentedDataset):
         return 1505 * 2
 
     def __getitem__(self, idx):
-        images_dirs = ["dataA", "dataB", "dataC"]
-        dataset_dir = f"datasets/AugmentedDIML/{images_dirs[int((idx % 1505)/502)]}"
+        # images_dirs = ["dataA", "dataB", "dataC"]
+        # dataset_dir = f"datasets/AugmentedDIML/{images_dirs[int((idx % 1505)/502)]}"
+        dataset_dir = f"datasets/AugmentedDatasets/DIML"
         random_group = np.random.randint(0, 3)
         random_augment = np.random.randint(0, 12)
         random_set = np.random.randint(1, 3)
@@ -323,8 +338,9 @@ class FlowDIML(DepthToFlowDataset):
         return 1505 * 2
 
     def __getitem__(self, idx):
-        images_dirs = ["dataA", "dataB", "dataC"]
-        dataset_dir = f"datasets/AugmentedDIML/{images_dirs[int((idx % 1505)/502)]}"
+        # images_dirs = ["dataA", "dataB", "dataC"]
+        # dataset_dir = f"datasets/AugmentedDIML/{images_dirs[int((idx % 1505)/502)]}"
+        dataset_dir = f"datasets/AugmentedDatasets/DIML"
         random_group = np.random.randint(0, 3)
         # group_npz_filename = f"{dataset_dir}/{idx + 1505}/group.npz"
         group_npz_filename = f"{dataset_dir}/{idx}/group.npz"
@@ -340,8 +356,9 @@ class VEMDIML(DepthToFlowDataset):
         return 1505 * 2
 
     def __getitem__(self, idx):
-        images_dirs = ["dataA", "dataB", "dataC"]
-        dataset_dir = f"datasets/AugmentedDIML/{images_dirs[int((idx % 1505)/502)]}"
+        # images_dirs = ["dataA", "dataB", "dataC"]
+        # dataset_dir = f"datasets/AugmentedDIML/{images_dirs[int((idx % 1505)/502)]}"
+        dataset_dir = f"datasets/AugmentedDatasets/DIML"
         random_group = 1
         # group_npz_filename = f"{dataset_dir}/{idx + 1505}/group.npz"
         group_npz_filename = f"{dataset_dir}/{idx}/group.npz"
@@ -358,8 +375,9 @@ class TestFlowReDWeb(DepthToFlowDataset):
         return 1698 * 2
 
     def __getitem__(self, idx):
-        images_dirs = ["dataA", "dataB", "dataC"]
-        dataset_dir = f"datasets/test_AugmentedReDWeb/{images_dirs[int((idx % 1698)/566)]}"
+        # images_dirs = ["dataA", "dataB", "dataC"]
+        # dataset_dir = f"datasets/test_AugmentedReDWeb/{images_dirs[int((idx % 1698)/566)]}"
+        dataset_dir = f"datasets/AugmentedDatasets/filted_ReDWeb"
         random_group = np.random.randint(0, 3)
         # group_npz_filename = f"{dataset_dir}/{idx + 3600}/group.npz"
         group_npz_filename = f"{dataset_dir}/{idx}/group.npz"
@@ -375,8 +393,9 @@ class TestVEMReDWeb(DepthToFlowDataset):
         return 1698 * 2
 
     def __getitem__(self, idx):
-        images_dirs = ["dataA", "dataB", "dataC"]
-        dataset_dir = f"datasets/test_AugmentedReDWeb/{images_dirs[int((idx % 1698)/566)]}"
+        # images_dirs = ["dataA", "dataB", "dataC"]
+        # dataset_dir = f"datasets/test_AugmentedReDWeb/{images_dirs[int((idx % 1698)/566)]}"
+        dataset_dir = f"datasets/AugmentedDatasets/filted_ReDWeb"
         random_group = 1
         # group_npz_filename = f"{dataset_dir}/{idx + 3600}/group.npz"
         group_npz_filename = f"{dataset_dir}/{idx}/group.npz"
@@ -393,8 +412,9 @@ class TestAugmentedReDWeb(AugmentedDataset):
         return 1698 * 2
 
     def __getitem__(self, idx):
-        images_dirs = ["dataA", "dataB", "dataC"]
-        dataset_dir = f"datasets/test_AugmentedReDWeb/{images_dirs[int((idx % 1698)/566)]}"
+        # images_dirs = ["dataA", "dataB", "dataC"]
+        # dataset_dir = f"datasets/test_AugmentedReDWeb/{images_dirs[int((idx % 1698)/566)]}"
+        dataset_dir = f"datasets/AugmentedDatasets/filted_ReDWeb"
         random_group = np.random.randint(0, 3)
         random_augment = np.random.randint(0, 12)
         random_set = np.random.randint(1, 3)

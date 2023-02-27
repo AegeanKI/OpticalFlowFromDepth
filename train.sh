@@ -49,18 +49,19 @@
 # epoch 50, 100
 # with depth vs without depth
 
-gpu=2
-dataset=merge
+gpu=0
+dataset=mixed
 output_dim=64
-batch_size=8
+batch_size=1
 max_epoch=100
 lr=0.0005
 python train_classifier.py --gpu $gpu \
     --dataset $dataset \
     --use_small \
+    --use_depth_in_classifier \
     --max_epoch $max_epoch \
     --output_dim $output_dim \
     --use_average_pooling \
+    --not_normalize_dataset \
     --lr $lr \
     --batch_size $batch_size
-    # --use_depth_in_classifier \
