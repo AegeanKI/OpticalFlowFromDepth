@@ -324,22 +324,64 @@ mkdir -p checkpoints
 # Feb 15 eva3
 # check VEMReDWeb, FlowReDWeb again
 # gpu 6 VEMReDWeb, gpu 7 FlowReDWeb
-name=raft-test-fr+s-noc
-gpu=7
+# name=raft-test-fr+s-noc
+# gpu=7
 
-python -u train.py --name ${name} --stage test-flowredweb \
+# python -u train.py --name ${name} --stage test-flowredweb \
+#     --validation kitti \
+#     --gpus ${gpu} --num_steps 120000 --batch_size 8 --lr 0.00025 --val_freq 1000 \
+#     --image_size 368 496 --wdecay 0.0001 \
+#     --mixed_precision
+#     # --add_classifier \
+#     # --classifier_checkpoint_timestamp 1672944585.6048822 \
+#     # --classifier_checkpoint_train_acc 0.675 \
+#     # --classifier_checkpoint_test_acc 0.804 \
+#     # --classify_loss_weight_init 1 \
+#     # --classify_loss_weight_increase -0.00002 \
+#     # --max_classify_loss_weight 1 \
+#     # --min_classify_loss_weight 0 \
+
+
+# Feb 28
+# check AD+s
+# name=raft-ad+s-noc
+# gpu=0
+
+# python -u train.py --name ${name} --stage augmenteddiml \
+#     --validation kitti \
+#     --gpus ${gpu} --num_steps 120000 --batch_size 8 --lr 0.00025 --val_freq 1000 \
+#     --image_size 368 496 --wdecay 0.0001 \
+#     --mixed_precision
+
+# Feb 28
+# check fD+s
+# name=raft-fd+s-noc
+# gpu=1
+
+# python -u train.py --name ${name} --stage flowdiml \
+#     --validation kitti \
+#     --gpus ${gpu} --num_steps 120000 --batch_size 8 --lr 0.00025 --val_freq 1000 \
+#     --image_size 368 496 --wdecay 0.0001 \
+#     --mixed_precision
+
+# Feb 28
+# check AR+s
+# name=raft-ar+s-noc
+# gpu=2
+
+# python -u train.py --name ${name} --stage augmentedfiltedredweb \
+#     --validation kitti \
+#     --gpus ${gpu} --num_steps 120000 --batch_size 8 --lr 0.00025 --val_freq 1000 \
+#     --image_size 368 496 --wdecay 0.0001 \
+#     --mixed_precision
+
+# Feb 28
+# check FR+s
+name=raft-fr+s-noc
+gpu=3
+
+python -u train.py --name ${name} --stage flowfiltedredweb \
     --validation kitti \
     --gpus ${gpu} --num_steps 120000 --batch_size 8 --lr 0.00025 --val_freq 1000 \
     --image_size 368 496 --wdecay 0.0001 \
     --mixed_precision
-    # --add_classifier \
-    # --classifier_checkpoint_timestamp 1672944585.6048822 \
-    # --classifier_checkpoint_train_acc 0.675 \
-    # --classifier_checkpoint_test_acc 0.804 \
-    # --classify_loss_weight_init 1 \
-    # --classify_loss_weight_increase -0.00002 \
-    # --max_classify_loss_weight 1 \
-    # --min_classify_loss_weight 0 \
-
-
-

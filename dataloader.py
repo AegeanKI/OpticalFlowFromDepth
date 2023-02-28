@@ -54,34 +54,6 @@ class FiltedReDWeb(data.Dataset):
 
         return img, depth
 
-# class Middlebury(data.Dataset):
-#     def __init__(self, dataset_dir, num_images=None):
-#         self.dataset_dir = dataset_dir
-#         self.img_paths = glob.glob(f"{dataset_dir}/*")
-#         random.shuffle(self.img_paths)
-#         if num_images and len(self.img_paths) > num_images:
-#             self.img_paths = self.img_paths[:num_images]
-
-#     def __len__(self):
-#         return len(self.img_paths)
-
-#     def __getitem__(self, idx):
-#         img0_path = f"{self.img_paths[idx]}/im0.png"
-#         img1_path = f"{self.img_paths[idx]}/im1.png"
-#         disp0_path = f"{self.img_paths[idx]}/disp0.pfm"
-#         disp1_path = f"{self.img_paths[idx]}/disp1.pfm"
-
-#         img0, img_size = utils.get_img(img0_path)
-#         img1, _ = utils.get_img(img1_path)
-#         disp0, disp_size = utils.get_disparity(disp0_path)
-#         disp1, _ = utils.get_disparity(disp1_path)
-
-#         if img_size != disp_size:
-#             disp0 = T.Resize(img_size)(disp0)
-#             disp1 = T.Resize(img_size)(disp1)
-
-#         return img0, img1, disp0, disp1
-
 
 class DIML(data.Dataset):
     def __init__(self, dataset_dir, num_images=None, load=False):
@@ -109,36 +81,6 @@ class DIML(data.Dataset):
             disp0 = T.Resize(img_size)(disp0)
 
         return img0, img1, disp0, disp1
-
-
-# class ETH3D(data.Dataset):
-#     def __init__(self, dataset_dir, num_images=None):
-#         self.dataset_dir = dataset_dir
-#         self.img_paths = glob.glob(f"{dataset_dir}/*/stereo_pairs/*")
-#         # print(f"{self.img_path = }")
-#         random.shuffle(self.img_paths)
-#         if num_images and len(self.img_paths) > num_images:
-#             self.img_paths = self.img_paths[:num_images]
-
-#     def __len__(self):
-#         return len(self.img_paths)
-
-
-#     def __getitem__(self, idx):
-#         img0_path = f"{self.img_paths[idx]}/im0.png"
-#         img1_path = f"{self.img_paths[idx]}/im1.png"
-#         disp0_path = f"{self.img_paths[idx]}/disp0GT.pfm"
-#         disp1_path = f"{self.img_paths[idx]}/disp1GT.pfm"
-
-#         img0, img_size = utils.get_img(img0_path)
-#         img1, _ = utils.get_img(img1_path)
-#         disp0, disp_size = utils.get_disparity(disp0_path)
-#         disp1, _ = utils.get_disparity(disp1_path)
-#         if img_size != disp_size:
-#             disp0 = T.Resize(img_size)(disp0)
-#             disp1 = T.Resize(img_size)(disp1)
-
-#         return img0, img1, disp0, disp1
 
 
 class AugmentedDataset(data.Dataset):
@@ -216,7 +158,7 @@ class AugmentedDataset(data.Dataset):
                 img0_depth = torch.flip(img0_depth, (2,))
                 flow = torch.flip(flow, (2,))
                 flow[0] = flow[0] * -1.0
-            
+
             if np.random.rand() < self.v_flip_prob:
                 img0 = torch.flip(img0, (1,))
                 img1 = torch.flip(img1, (1,))
@@ -235,7 +177,6 @@ class AugmentedDataset(data.Dataset):
 
 
         label_type = max(0, augment_flow_type - 4)
-        # label = utils.one_hot(label_type, num_classes)
         label = torch.zeros(num_classes)
         label[label_type] = 1
         return img0, img1, flow, img0_depth, label
@@ -288,26 +229,6 @@ class DepthToFlowDataset(data.Dataset):
         return img0, img1, flow, img0_depth, label
 
 
-# class AugmentedReDWeb(AugmentedDataset):
-#     def __init__(self, normalize_dataset=True, size=None):
-#         super().__init__(normalize_dataset, size)
-
-#     def __len__(self):
-#         # return 3600
-#         return 7200
-
-#     def __getitem__(self, idx):
-#         images_dirs = ["dataA", "dataB", "dataC"]
-#         dataset_dir = f"datasets/AugmentedReDWeb/{images_dirs[int((idx % 3600)/1200)]}"
-#         random_group = np.random.randint(0, 3)
-#         random_augment = np.random.randint(0, 12)
-#         random_set = np.random.randint(1, 3)
-#         npz_filename = f"{dataset_dir}/{idx}/{random_group}_{random_augment}_{random_set}.npz"
-#         # group_npz_filename = f"{dataset_dir}/{idx + 3600}/group.npz"
-#         group_npz_filename = f"{dataset_dir}/{idx}/group.npz"
-#         return self.getitem_from_npz(npz_filename, group_npz_filename, random_group, idx)
-
-
 class AugmentedDIML(AugmentedDataset):
     def __init__(self, normalize_dataset=True, size=None, crop_size=None):
         super().__init__(normalize_dataset=normalize_dataset, size=size, crop_size=crop_size)
@@ -317,8 +238,6 @@ class AugmentedDIML(AugmentedDataset):
         return 1505 * 2
 
     def __getitem__(self, idx):
-        # images_dirs = ["dataA", "dataB", "dataC"]
-        # dataset_dir = f"datasets/AugmentedDIML/{images_dirs[int((idx % 1505)/502)]}"
         dataset_dir = f"datasets/AugmentedDatasets/DIML"
         random_group = np.random.randint(0, 3)
         random_augment = np.random.randint(0, 12)
@@ -338,8 +257,6 @@ class FlowDIML(DepthToFlowDataset):
         return 1505 * 2
 
     def __getitem__(self, idx):
-        # images_dirs = ["dataA", "dataB", "dataC"]
-        # dataset_dir = f"datasets/AugmentedDIML/{images_dirs[int((idx % 1505)/502)]}"
         dataset_dir = f"datasets/AugmentedDatasets/DIML"
         random_group = np.random.randint(0, 3)
         # group_npz_filename = f"{dataset_dir}/{idx + 1505}/group.npz"
@@ -356,8 +273,6 @@ class VEMDIML(DepthToFlowDataset):
         return 1505 * 2
 
     def __getitem__(self, idx):
-        # images_dirs = ["dataA", "dataB", "dataC"]
-        # dataset_dir = f"datasets/AugmentedDIML/{images_dirs[int((idx % 1505)/502)]}"
         dataset_dir = f"datasets/AugmentedDatasets/DIML"
         random_group = 1
         # group_npz_filename = f"{dataset_dir}/{idx + 1505}/group.npz"
@@ -370,13 +285,9 @@ class TestFlowReDWeb(DepthToFlowDataset):
         super().__init__(normalize_dataset, size)
 
     def __len__(self):
-        # return 3600
-        # return 7200
         return 1698 * 2
 
     def __getitem__(self, idx):
-        # images_dirs = ["dataA", "dataB", "dataC"]
-        # dataset_dir = f"datasets/test_AugmentedReDWeb/{images_dirs[int((idx % 1698)/566)]}"
         dataset_dir = f"datasets/AugmentedDatasets/filted_ReDWeb"
         random_group = np.random.randint(0, 3)
         # group_npz_filename = f"{dataset_dir}/{idx + 3600}/group.npz"
@@ -388,13 +299,9 @@ class TestVEMReDWeb(DepthToFlowDataset):
         super().__init__(normalize_dataset, size)
 
     def __len__(self):
-        # return 3600
-        # return 7200
         return 1698 * 2
 
     def __getitem__(self, idx):
-        # images_dirs = ["dataA", "dataB", "dataC"]
-        # dataset_dir = f"datasets/test_AugmentedReDWeb/{images_dirs[int((idx % 1698)/566)]}"
         dataset_dir = f"datasets/AugmentedDatasets/filted_ReDWeb"
         random_group = 1
         # group_npz_filename = f"{dataset_dir}/{idx + 3600}/group.npz"
@@ -407,13 +314,9 @@ class TestAugmentedReDWeb(AugmentedDataset):
         super().__init__(normalize_dataset=normalize_dataset, size=size, crop_size=crop_size)
 
     def __len__(self):
-        # return 3600
-        # return 7200
         return 1698 * 2
 
     def __getitem__(self, idx):
-        # images_dirs = ["dataA", "dataB", "dataC"]
-        # dataset_dir = f"datasets/test_AugmentedReDWeb/{images_dirs[int((idx % 1698)/566)]}"
         dataset_dir = f"datasets/AugmentedDatasets/filted_ReDWeb"
         random_group = np.random.randint(0, 3)
         random_augment = np.random.randint(0, 12)

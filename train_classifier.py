@@ -91,6 +91,7 @@ def read_args():
     parser.add_argument('--num_classes', default=4, type=int)
     parser.add_argument('--not_normalize_dataset', action='store_true')
     parser.add_argument('--checkpoints')
+    parser.add_argument('--eval_freq', default=10, type=int)
         
     args = parser.parse_args()
     return args
@@ -176,7 +177,7 @@ if __name__ == "__main__":
                              sampler=test_sampler)
 
     optimizer = AdamW(model.parameters(), lr=args.lr, weight_decay=0.0001, eps=1e-8)
-    scheduler = lr_scheduler.OneCycleLR(optimizer, args.lr, total_steps=args.max_epoch * len(train_sampler)+20,
+    scheduler = lr_scheduler.OneCycleLR(optimizer, args.lr, total_steps=args.max_epoch * len(train_sampler)+10,
         pct_start=0.05, cycle_momentum=False, anneal_strategy='linear')
 
     for epoch in range(args.max_epoch):
@@ -193,6 +194,8 @@ if __name__ == "__main__":
             flow = flow * (depth != 100).repeat(1, 2, 1, 1)
             flow_depth = torch.cat((flow, depth), axis=1).to(device)
 
+            # print(f"{depth.min() = }")
+            # print(f"{depth.max() = }")
             # print(f"{img0.shape =}")
             # print(f"{flow.shape =}")
             # import os
@@ -238,35 +241,37 @@ if __name__ == "__main__":
         print(f"last lr = {scheduler.get_last_lr()[0]}")
         print(f"{confusion_matrix = }")
 
-        total = 0
-        correct = 0
-        confusion_matrix = np.zeros((args.num_classes, args.num_classes))
-        model.eval()
-        for batch_idx, (_, _, flow, depth, label) in enumerate(tqdm(test_loader)):
-            flow = flow.float().to(device)
-            depth = depth.float().to(device)
-            label = label.to(device)
-            flow = flow * (depth != 100).repeat(1, 2, 1, 1)
-            flow_depth = torch.cat((flow, depth), axis=1).to(device)
+        if epoch % args.eval_freq - 1:
+            total = 0
+            correct = 0
+            confusion_matrix = np.zeros((args.num_classes, args.num_classes))
+            model.eval()
+            for batch_idx, (_, _, flow, depth, label) in enumerate(tqdm(test_loader)):
+                flow = flow.float().to(device)
+                depth = depth.float().to(device)
+                label = label.to(device)
+                flow = flow * (depth != 100).repeat(1, 2, 1, 1)
+                flow_depth = torch.cat((flow, depth), axis=1).to(device)
 
-            if not args.use_depth_in_classifier:
-                predict1 = model(flow)
-            else:
-                predict1 = model(flow_depth)
+                if not args.use_depth_in_classifier:
+                    predict1 = model(flow)
+                else:
+                    predict1 = model(flow_depth)
 
-            predict1 = torch.nn.Softmax(dim=1)(predict1)
-            total = total + args.batch_size
-            correct = correct + (torch.max(predict1, dim=1).indices ==
-                                 torch.max(label, dim=1).indices).sum().item()
+                predict1 = torch.nn.Softmax(dim=1)(predict1)
+                total = total + args.batch_size
+                correct = correct + (torch.max(predict1, dim=1).indices ==
+                                     torch.max(label, dim=1).indices).sum().item()
 
-            for p, l in zip(torch.max(predict1, dim=1).indices, torch.max(label, dim=1).indices):
-                confusion_matrix[p, l] = confusion_matrix[p, l] + 1
-            # break
-        test_acc = correct / total
-        print(f"                    test accuracy = {correct} / {total} = {correct / total}")
-        print(f"{confusion_matrix = }")
-        model_name = type(model).__name__
-        torch.save(model.state_dict(), f"outputs/models/{cur_time}/{train_acc=:.3f}_{test_acc=:.3f}.pt")
+                for p, l in zip(torch.max(predict1, dim=1).indices, torch.max(label, dim=1).indices):
+                    confusion_matrix[p, l] = confusion_matrix[p, l] + 1
+                # break
+            test_acc = correct / total
+            print(f"                    test accuracy = {correct} / {total} = {correct / total}")
+            print(f"{confusion_matrix = }")
+            model_name = type(model).__name__
+            torch.save(model.state_dict(), f"outputs/models/{cur_time}/{train_acc=:.3f}_{test_acc=:.3f}.pt")
         # break
+    torch.save(model.state_dict(), f"outputs/models/{cur_time}/result.pt")
 
 

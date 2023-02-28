@@ -347,33 +347,33 @@ NUM_GPUS=4
 # batch size 8, lr 2e-4, kitti scale
 # num steps 200000
 
-name=gmflow-c-t-mixed-newc-2e5-1
-port=9989
-checkpoint_dir=checkpoints/$name && \
-mkdir -p ${checkpoint_dir} && \
-CUDA_VISIBLE_DEVICES=4,5,6,7 \
-python -m torch.distributed.launch --nproc_per_node=${NUM_GPUS} --master_port=${port} main.py \
---launcher pytorch \
---checkpoint_dir ${checkpoint_dir} \
---resume checkpoints/pretrained/gmflow_things-e9887eda.pth \
---stage mixed \
---batch_size 8 \
---val_dataset kitti sintel \
---lr 2e-4 \
---image_size 384 512 \
---original_image_size 480 640 \
---padding_factor 16 \
---upsample_factor 8 \
---with_speed_metric \
---val_freq 1000 \
---save_ckpt_freq 1000 \
---num_steps 200000 \
---add_classifier \
---classifier_checkpoint_timestamp 1676428131.235737 \
---classifier_checkpoint_train_acc 0.939 \
---classifier_checkpoint_test_acc 0.913 \
---classify_loss_weight_init 1 \
---classify_loss_weight_increase -0.00002 \
---max_classify_loss_weight 1 \
---min_classify_loss_weight 0 \
-2>&1 | tee -a ${checkpoint_dir}/train.log
+# name=gmflow-c-t-mixed-newc-2e5-1
+# port=9989
+# checkpoint_dir=checkpoints/$name && \
+# mkdir -p ${checkpoint_dir} && \
+# CUDA_VISIBLE_DEVICES=4,5,6,7 \
+# python -m torch.distributed.launch --nproc_per_node=${NUM_GPUS} --master_port=${port} main.py \
+# --launcher pytorch \
+# --checkpoint_dir ${checkpoint_dir} \
+# --resume checkpoints/pretrained/gmflow_things-e9887eda.pth \
+# --stage mixed \
+# --batch_size 8 \
+# --val_dataset kitti sintel \
+# --lr 2e-4 \
+# --image_size 384 512 \
+# --original_image_size 480 640 \
+# --padding_factor 16 \
+# --upsample_factor 8 \
+# --with_speed_metric \
+# --val_freq 1000 \
+# --save_ckpt_freq 1000 \
+# --num_steps 200000 \
+# --add_classifier \
+# --classifier_checkpoint_timestamp 1676428131.235737 \
+# --classifier_checkpoint_train_acc 0.939 \
+# --classifier_checkpoint_test_acc 0.913 \
+# --classify_loss_weight_init 1 \
+# --classify_loss_weight_increase -0.00002 \
+# --max_classify_loss_weight 1 \
+# --min_classify_loss_weight 0 \
+# 2>&1 | tee -a ${checkpoint_dir}/train.log
