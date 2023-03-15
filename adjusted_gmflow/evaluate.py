@@ -563,6 +563,275 @@ def validate_kitti(model,
 
 
 @torch.no_grad()
+def validate_kitti12(model,
+                     padding_factor=8,
+                     with_speed_metric=False,
+                     average_over_pixels=True,
+                     attn_splits_list=False,
+                     corr_radius_list=False,
+                     prop_radius_list=False,
+                     ):
+    print(f"in validate kitti 12")
+    """ Peform validation using the KITTI-2012 (train) split """
+    model.eval()
+
+    val_dataset = data.KITTI12(split='training')
+    print('Number of validation image pairs: %d' % len(val_dataset))
+
+    out_list, epe_list = [], []
+    results = {}
+
+    if with_speed_metric:
+        if average_over_pixels:
+            s0_10_list = []
+            s10_40_list = []
+            s40plus_list = []
+        else:
+            s0_10_epe_sum = 0
+            s0_10_valid_samples = 0
+            s10_40_epe_sum = 0
+            s10_40_valid_samples = 0
+            s40plus_epe_sum = 0
+            s40plus_valid_samples = 0
+
+    for val_id in range(len(val_dataset)):
+        image1, image2, flow_gt, _, valid_gt, _ = val_dataset[val_id]
+        image1 = image1[None].cuda()
+        image2 = image2[None].cuda()
+
+        padder = InputPadder(image1.shape, mode='kitti', padding_factor=padding_factor)
+        image1, image2 = padder.pad(image1, image2)
+
+        results_dict = model(image1, image2,
+                             attn_splits_list=attn_splits_list,
+                             corr_radius_list=corr_radius_list,
+                             prop_radius_list=prop_radius_list,
+                             )
+
+        # useful when using parallel branches
+        flow_pr = results_dict['flow_preds'][-1]
+
+        flow = padder.unpad(flow_pr[0]).cpu()
+
+        epe = torch.sum((flow - flow_gt) ** 2, dim=0).sqrt()
+        mag = torch.sum(flow_gt ** 2, dim=0).sqrt()
+
+        if with_speed_metric:
+            # flow_gt_speed = torch.sum(flow_gt ** 2, dim=0).sqrt()
+            flow_gt_speed = mag
+
+            if average_over_pixels:
+                valid_mask = (flow_gt_speed < 10) * (valid_gt >= 0.5)  # note KITTI GT is sparse
+                if valid_mask.max() > 0:
+                    s0_10_list.append(epe[valid_mask].cpu().numpy())
+
+                valid_mask = (flow_gt_speed >= 10) * (flow_gt_speed <= 40) * (valid_gt >= 0.5)
+                if valid_mask.max() > 0:
+                    s10_40_list.append(epe[valid_mask].cpu().numpy())
+
+                valid_mask = (flow_gt_speed > 40) * (valid_gt >= 0.5)
+                if valid_mask.max() > 0:
+                    s40plus_list.append(epe[valid_mask].cpu().numpy())
+
+            else:
+                valid_mask = (flow_gt_speed < 10) * (valid_gt >= 0.5)  # note KITTI GT is sparse
+                if valid_mask.max() > 0:
+                    s0_10_epe_sum += (epe * valid_mask).sum() / valid_mask.sum()
+                    s0_10_valid_samples += 1
+
+                valid_mask = (flow_gt_speed >= 10) * (flow_gt_speed <= 40) * (valid_gt >= 0.5)
+                if valid_mask.max() > 0:
+                    s10_40_epe_sum += (epe * valid_mask).sum() / valid_mask.sum()
+                    s10_40_valid_samples += 1
+
+                valid_mask = (flow_gt_speed > 40) * (valid_gt >= 0.5)
+                if valid_mask.max() > 0:
+                    s40plus_epe_sum += (epe * valid_mask).sum() / valid_mask.sum()
+                    s40plus_valid_samples += 1
+
+        epe = epe.view(-1)
+        mag = mag.view(-1)
+        val = valid_gt.view(-1) >= 0.5
+
+        out = ((epe > 3.0) & ((epe / mag) > 0.05)).float()
+
+        if average_over_pixels:
+            epe_list.append(epe[val].cpu().numpy())
+        else:
+            epe_list.append(epe[val].mean().item())
+
+        out_list.append(out[val].cpu().numpy())
+
+    if average_over_pixels:
+        epe_list = np.concatenate(epe_list)
+    else:
+        epe_list = np.array(epe_list)
+    out_list = np.concatenate(out_list)
+
+    epe = np.mean(epe_list)
+    f1 = 100 * np.mean(out_list)
+
+    print("Validation KITTI-12 EPE: %.3f, F1-all: %.3f" % (epe, f1))
+    results['kitti12_epe'] = epe
+    results['kitti12_f1'] = f1
+
+    if with_speed_metric:
+        if average_over_pixels:
+            s0_10 = np.mean(np.concatenate(s0_10_list))
+            s10_40 = np.mean(np.concatenate(s10_40_list))
+            s40plus = np.mean(np.concatenate(s40plus_list))
+        else:
+            s0_10 = s0_10_epe_sum / s0_10_valid_samples
+            s10_40 = s10_40_epe_sum / s10_40_valid_samples
+            s40plus = s40plus_epe_sum / s40plus_valid_samples
+
+        print("Validation KITTI-12 s0_10: %.3f, s10_40: %.3f, s40+: %.3f" % (
+            s0_10,
+            s10_40,
+            s40plus))
+
+        results['kitti12_s0_10'] = s0_10
+        results['kitti12_s10_40'] = s10_40
+        results['kitti12_s40+'] = s40plus
+
+    return results
+
+
+@torch.no_grad()
+def validate_finetunekitti15(model,
+                   padding_factor=8,
+                   with_speed_metric=False,
+                   average_over_pixels=True,
+                   attn_splits_list=False,
+                   corr_radius_list=False,
+                   prop_radius_list=False,
+                   ):
+    """ Peform validation using the KITTI-2015 (train) split """
+    model.eval()
+
+    val_dataset = data.KITTI(split='validating')
+    print('Number of validation image pairs: %d' % len(val_dataset))
+
+    out_list, epe_list = [], []
+    results = {}
+
+    if with_speed_metric:
+        if average_over_pixels:
+            s0_10_list = []
+            s10_40_list = []
+            s40plus_list = []
+        else:
+            s0_10_epe_sum = 0
+            s0_10_valid_samples = 0
+            s10_40_epe_sum = 0
+            s10_40_valid_samples = 0
+            s40plus_epe_sum = 0
+            s40plus_valid_samples = 0
+
+    for val_id in range(len(val_dataset)):
+        image1, image2, flow_gt, _, valid_gt, _ = val_dataset[val_id]
+        image1 = image1[None].cuda()
+        image2 = image2[None].cuda()
+
+        padder = InputPadder(image1.shape, mode='kitti', padding_factor=padding_factor)
+        image1, image2 = padder.pad(image1, image2)
+
+        results_dict = model(image1, image2,
+                             attn_splits_list=attn_splits_list,
+                             corr_radius_list=corr_radius_list,
+                             prop_radius_list=prop_radius_list,
+                             )
+
+        # useful when using parallel branches
+        flow_pr = results_dict['flow_preds'][-1]
+
+        flow = padder.unpad(flow_pr[0]).cpu()
+
+        epe = torch.sum((flow - flow_gt) ** 2, dim=0).sqrt()
+        mag = torch.sum(flow_gt ** 2, dim=0).sqrt()
+
+        if with_speed_metric:
+            # flow_gt_speed = torch.sum(flow_gt ** 2, dim=0).sqrt()
+            flow_gt_speed = mag
+
+            if average_over_pixels:
+                valid_mask = (flow_gt_speed < 10) * (valid_gt >= 0.5)  # note KITTI GT is sparse
+                if valid_mask.max() > 0:
+                    s0_10_list.append(epe[valid_mask].cpu().numpy())
+
+                valid_mask = (flow_gt_speed >= 10) * (flow_gt_speed <= 40) * (valid_gt >= 0.5)
+                if valid_mask.max() > 0:
+                    s10_40_list.append(epe[valid_mask].cpu().numpy())
+
+                valid_mask = (flow_gt_speed > 40) * (valid_gt >= 0.5)
+                if valid_mask.max() > 0:
+                    s40plus_list.append(epe[valid_mask].cpu().numpy())
+
+            else:
+                valid_mask = (flow_gt_speed < 10) * (valid_gt >= 0.5)  # note KITTI GT is sparse
+                if valid_mask.max() > 0:
+                    s0_10_epe_sum += (epe * valid_mask).sum() / valid_mask.sum()
+                    s0_10_valid_samples += 1
+
+                valid_mask = (flow_gt_speed >= 10) * (flow_gt_speed <= 40) * (valid_gt >= 0.5)
+                if valid_mask.max() > 0:
+                    s10_40_epe_sum += (epe * valid_mask).sum() / valid_mask.sum()
+                    s10_40_valid_samples += 1
+
+                valid_mask = (flow_gt_speed > 40) * (valid_gt >= 0.5)
+                if valid_mask.max() > 0:
+                    s40plus_epe_sum += (epe * valid_mask).sum() / valid_mask.sum()
+                    s40plus_valid_samples += 1
+
+        epe = epe.view(-1)
+        mag = mag.view(-1)
+        val = valid_gt.view(-1) >= 0.5
+
+        out = ((epe > 3.0) & ((epe / mag) > 0.05)).float()
+
+        if average_over_pixels:
+            epe_list.append(epe[val].cpu().numpy())
+        else:
+            epe_list.append(epe[val].mean().item())
+
+        out_list.append(out[val].cpu().numpy())
+
+    if average_over_pixels:
+        epe_list = np.concatenate(epe_list)
+    else:
+        epe_list = np.array(epe_list)
+    out_list = np.concatenate(out_list)
+
+    epe = np.mean(epe_list)
+    f1 = 100 * np.mean(out_list)
+
+    print("Validation Fine-tune KITTI15 EPE: %.3f, F1-all: %.3f" % (epe, f1))
+    results['finetunekitti_epe'] = epe
+    results['finetunekitti_f1'] = f1
+
+    if with_speed_metric:
+        if average_over_pixels:
+            s0_10 = np.mean(np.concatenate(s0_10_list))
+            s10_40 = np.mean(np.concatenate(s10_40_list))
+            s40plus = np.mean(np.concatenate(s40plus_list))
+        else:
+            s0_10 = s0_10_epe_sum / s0_10_valid_samples
+            s10_40 = s10_40_epe_sum / s10_40_valid_samples
+            s40plus = s40plus_epe_sum / s40plus_valid_samples
+
+        print("Validation KITTI s0_10: %.3f, s10_40: %.3f, s40+: %.3f" % (
+            s0_10,
+            s10_40,
+            s40plus))
+
+        results['finetunekitti_s0_10'] = s0_10
+        results['finetunekitti_s10_40'] = s10_40
+        results['finetunekitti_s40+'] = s40plus
+
+    return results
+
+
+@torch.no_grad()
 def inference_on_dir(model,
                      inference_dir,
                      output_path='output',

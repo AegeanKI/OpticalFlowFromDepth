@@ -131,8 +131,8 @@ if __name__ == "__main__":
                                # use_pooling=args.use_pooling,
                                use_average_pooling=args.use_average_pooling)
     model.to(device)
-    # if args.checkpoints is not None:
-    #     model.load_state_dict(torch.load(args.checkpoints))
+    if args.checkpoints is not None:
+        model.load_state_dict(torch.load(args.checkpoints))
     loss_func = CrossEntropyLoss()
 
     utils.set_seed(12345)
@@ -234,14 +234,13 @@ if __name__ == "__main__":
 
             for p, l in zip(torch.max(predict1, dim=1).indices, torch.max(label, dim=1).indices):
                 confusion_matrix[p, l] = confusion_matrix[p, l] + 1
-            # break
 
         train_acc = correct / total
         print(f"    train accuracy = {correct} / {total} = {correct / total}")
         print(f"last lr = {scheduler.get_last_lr()[0]}")
         print(f"{confusion_matrix = }")
 
-        if epoch % args.eval_freq - 1:
+        if epoch % args.eval_freq == args.eval_freq - 1:
             total = 0
             correct = 0
             confusion_matrix = np.zeros((args.num_classes, args.num_classes))

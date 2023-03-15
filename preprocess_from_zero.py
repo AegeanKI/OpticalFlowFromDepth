@@ -156,7 +156,7 @@ def augment_flow_small(img0, img0_depth, img1, img1_depth,
                 img1, img1_depth), (
                 img0, img0_depth,
                 augment_img1_flow, back_augment_img1_flow,
-                augment_img1, augment_img1_depth), int(augment_flow_type)
+                augment_img1, augment_img1_depth), int(augment_flow_type), (special_flow, back_special_flow)
     elif augment_flow_type >= 3.:
         pass
     elif augment_flow_type >= 0.:
@@ -197,7 +197,7 @@ def augment_flow_small(img0, img0_depth, img1, img1_depth,
                 img1, img1_depth), (
                 img0, img0_depth,
                 flow01, back_flow01, 
-                augment_img1, img1_depth), int(augment_flow_type)
+                augment_img1, img1_depth), int(augment_flow_type), None
 
 
 def augment_flow(img0, img0_depth, img1, img1_depth,
@@ -238,14 +238,14 @@ def augment_flow(img0, img0_depth, img1, img1_depth,
         back_augment_img1_flow = bf(augment_img1_flow, img0_depth)
         
         del fw, cf, bf, sf
-        del special_flow, back_special_flow
+        # del special_flow, back_special_flow
 
         return (augment_img0, augment_img0_depth,
                 augment_img0_flow, back_augment_img0_flow, 
                 img1, img1_depth), (
                 img0, img0_depth,
                 augment_img1_flow, back_augment_img1_flow,
-                augment_img1, augment_img1_depth), int(augment_flow_type)
+                augment_img1, augment_img1_depth), int(augment_flow_type), (special_flow, back_special_flow)
     elif augment_flow_type >= 3.:
         pass
         # if augment_flow_type >= 4.:
@@ -339,7 +339,7 @@ def augment_flow(img0, img0_depth, img1, img1_depth,
                 img1, img1_depth), (
                 img0, img0_depth,
                 flow01, back_flow01, 
-                augment_img1, img1_depth), int(augment_flow_type)
+                augment_img1, img1_depth), int(augment_flow_type), None
 
 class Plausible():
     @staticmethod
@@ -511,6 +511,7 @@ class PreprocessPlusAugment(nn.Module):
     def forward(self, datas, output_dir, is_stereo=False, augment_small=False):
         start_preprocess_time = time.time()
         print(f"{output_dir = }")
+        idx = output_dir.split("/")[-1]
 
         if not is_stereo:
             img0, img0_depth = datas
@@ -581,8 +582,8 @@ class PreprocessPlusAugment(nn.Module):
             print(f"something wrong when preprocess {output_dir}")
             sys.exit()
 
-        np.savez_compressed(f"{output_dir}/group.npz",
-                            img_depth_flow=to_save_data0)
+        # np.savez_compressed(f"{output_dir}/group.npz",
+        #                     img_depth_flow=to_save_data0)
 
         end_preprocess_time = time.time()
         print(f"preprocess time = {end_preprocess_time - start_preprocess_time}")
@@ -592,36 +593,38 @@ class PreprocessPlusAugment(nn.Module):
                  (img1, img1_depth, img2, img2_depth, flow12, back_flow12),
                  (img0, img0_depth, img2, img2_depth, flow02, back_flow02)]
         
-        # group_output_dir = f"test_output/group"
-        # if not os.path.exists(group_output_dir):
-        #     os.makedirs(group_output_dir)
+        test_output_dir = f"test_output/{idx}"
+        group_output_dir = f"{test_output_dir}/group"
+        print(f"{group_output_dir = }")
+        if not os.path.exists(group_output_dir):
+            os.makedirs(group_output_dir)
 
-        # cv2.imwrite(f"{group_output_dir}/img0.png", img0.permute(1, 2, 0).cpu().numpy())
-        # plt.imsave(f"{group_output_dir}/img0_depth.png", 1 / img0_depth[0].cpu().numpy(), cmap="magma")
-        # cv2.imwrite(f"{group_output_dir}/img1.png", img1.permute(1, 2, 0).cpu().numpy())
-        # # cv2.imwrite(f"{group_output_dir}/img1_real.png", img1_real.permute(1, 2, 0).cpu().numpy())
-        # plt.imsave(f"{group_output_dir}/img1_depth.png", 1 / img1_depth[0].cpu().numpy(), cmap="magma")
-        # cv2.imwrite(f"{group_output_dir}/img2.png", img2.permute(1, 2, 0).cpu().numpy())
-        # plt.imsave(f"{group_output_dir}/img2_depth.png", 1 / img2_depth[0].cpu().numpy(), cmap="magma")
-        # cv2.imwrite(f"{group_output_dir}/flow01.png", utils.color_flow(flow01.permute(1, 2, 0).unsqueeze(0).cpu())[1])
-        # cv2.imwrite(f"{group_output_dir}/flow12.png", utils.color_flow(flow12.permute(1, 2, 0).unsqueeze(0).cpu())[1])
-        # cv2.imwrite(f"{group_output_dir}/flow02.png", utils.color_flow(flow02.permute(1, 2, 0).unsqueeze(0).cpu())[1])
+        cv2.imwrite(f"{group_output_dir}/img0.png", img0.permute(1, 2, 0).cpu().numpy())
+        plt.imsave(f"{group_output_dir}/img0_depth.png", 1 / img0_depth[0].cpu().numpy(), cmap="magma")
+        cv2.imwrite(f"{group_output_dir}/img1.png", img1.permute(1, 2, 0).cpu().numpy())
+        # cv2.imwrite(f"{group_output_dir}/img1_real.png", img1_real.permute(1, 2, 0).cpu().numpy())
+        plt.imsave(f"{group_output_dir}/img1_depth.png", 1 / img1_depth[0].cpu().numpy(), cmap="magma")
+        cv2.imwrite(f"{group_output_dir}/img2.png", img2.permute(1, 2, 0).cpu().numpy())
+        plt.imsave(f"{group_output_dir}/img2_depth.png", 1 / img2_depth[0].cpu().numpy(), cmap="magma")
+        cv2.imwrite(f"{group_output_dir}/flow01.png", utils.color_flow(flow01.permute(1, 2, 0).unsqueeze(0).cpu())[1])
+        cv2.imwrite(f"{group_output_dir}/flow12.png", utils.color_flow(flow12.permute(1, 2, 0).unsqueeze(0).cpu())[1])
+        cv2.imwrite(f"{group_output_dir}/flow02.png", utils.color_flow(flow02.permute(1, 2, 0).unsqueeze(0).cpu())[1])
 
-        # img0_mask = (img0_depth != 100).repeat(3, 1, 1)
-        # img1_mask = (img1_depth != 100).repeat(3, 1, 1)
-        # img2_mask = (img2_depth != 100).repeat(3, 1, 1)
-        # cv2.imwrite(f"{group_output_dir}/img0_mask.png", img0_mask.permute(1, 2, 0).cpu().numpy() * 255)
-        # cv2.imwrite(f"{group_output_dir}/img1_mask.png", img1_mask.permute(1, 2, 0).cpu().numpy() * 255)
-        # cv2.imwrite(f"{group_output_dir}/img2_mask.png", img2_mask.permute(1, 2, 0).cpu().numpy() * 255)
+        img0_mask = (img0_depth != 100).repeat(3, 1, 1)
+        img1_mask = (img1_depth != 100).repeat(3, 1, 1)
+        img2_mask = (img2_depth != 100).repeat(3, 1, 1)
+        cv2.imwrite(f"{group_output_dir}/img0_mask.png", img0_mask.permute(1, 2, 0).cpu().numpy() * 255)
+        cv2.imwrite(f"{group_output_dir}/img1_mask.png", img1_mask.permute(1, 2, 0).cpu().numpy() * 255)
+        cv2.imwrite(f"{group_output_dir}/img2_mask.png", img2_mask.permute(1, 2, 0).cpu().numpy() * 255)
 
-        # cv2.imwrite(f"{group_output_dir}/img0_masked.png", (img0 * img0_mask).permute(1, 2, 0).cpu().numpy())
-        # cv2.imwrite(f"{group_output_dir}/img1_masked.png", (img1 * img1_mask).permute(1, 2, 0).cpu().numpy())
-        # cv2.imwrite(f"{group_output_dir}/img2_masked.png", (img2 * img2_mask).permute(1, 2, 0).cpu().numpy())
+        cv2.imwrite(f"{group_output_dir}/img0_masked.png", (img0 * img0_mask).permute(1, 2, 0).cpu().numpy())
+        cv2.imwrite(f"{group_output_dir}/img1_masked.png", (img1 * img1_mask).permute(1, 2, 0).cpu().numpy())
+        cv2.imwrite(f"{group_output_dir}/img2_masked.png", (img2 * img2_mask).permute(1, 2, 0).cpu().numpy())
 
-        # warped_img1, _, _ = self.fw(img0, flow01, img0_depth)
-        # warped_img2, _, _ = self.fw(img0, flow02, img0_depth)
-        # cv2.imwrite(f"{group_output_dir}/warped_img1.png", warped_img1.permute(1, 2, 0).cpu().numpy())
-        # cv2.imwrite(f"{group_output_dir}/warped_img2.png", warped_img2.permute(1, 2, 0).cpu().numpy())
+        warped_img1, _, _ = self.fw(img0, flow01, img0_depth)
+        warped_img2, _, _ = self.fw(img0, flow02, img0_depth)
+        cv2.imwrite(f"{group_output_dir}/warped_img1.png", warped_img1.permute(1, 2, 0).cpu().numpy())
+        cv2.imwrite(f"{group_output_dir}/warped_img2.png", warped_img2.permute(1, 2, 0).cpu().numpy())
 
         for group_idx, (imgA, imgA_depth, imgB, imgB_depth, flowAB, back_flowAB) in enumerate(group):
             for augment_idx, augment_flow_type in enumerate([0, 5, 6, 7, 1, 5, 6, 7, 2, 5, 6, 7]):
@@ -629,13 +632,13 @@ class PreprocessPlusAugment(nn.Module):
             # for augment_idx, augment_flow_type in enumerate([5, 6, 7]):
 
                 if not augment_small:
-                    set1, set2, _ = augment_flow(imgA, imgA_depth, imgB, imgB_depth, flowAB,
-                                                 back_flowAB, device=self.device,
-                                                 augment_flow_type=augment_flow_type)
+                    set1, set2, _, set3 = augment_flow(imgA, imgA_depth, imgB, imgB_depth, flowAB,
+                                                       back_flowAB, device=self.device,
+                                                       augment_flow_type=augment_flow_type)
                 else:
-                    set1, set2, _ = augment_flow_small(imgA, imgA_depth, imgB, imgB_depth, flowAB,
-                                                 back_flowAB, device=self.device,
-                                                 augment_flow_type=augment_flow_type)
+                    set1, set2, _, set3 = augment_flow_small(imgA, imgA_depth, imgB, imgB_depth, flowAB,
+                                                             back_flowAB, device=self.device,
+                                                             augment_flow_type=augment_flow_type)
 
                 to_save_data1 = torch.cat([set1[i] for i in range(0, 4)], axis=0) # img0, img0_depth, flow01, back_flow01
                                                                                   #  0:3         3:4     4:6          6:8
@@ -649,37 +652,42 @@ class PreprocessPlusAugment(nn.Module):
                     print(f"something wrong when preprocess {output_dir}")
                     sys.exit()
 
-                np.savez_compressed(f"{output_dir}/{group_idx}_{augment_idx}_1.npz",
-                                    augment_img=0,
-                                    img_depth_flow=to_save_data1_np,
-                                    augment_flow_type=augment_flow_type)
-                np.savez_compressed(f"{output_dir}/{group_idx}_{augment_idx}_2.npz",
-                                    augment_img=1,
-                                    img_depth_flow=to_save_data2_np,
-                                    augment_flow_type=augment_flow_type)
+                # np.savez_compressed(f"{output_dir}/{group_idx}_{augment_idx}_1.npz",
+                #                     augment_img=0,
+                #                     img_depth_flow=to_save_data1_np,
+                #                     augment_flow_type=augment_flow_type)
+                # np.savez_compressed(f"{output_dir}/{group_idx}_{augment_idx}_2.npz",
+                #                     augment_img=1,
+                #                     img_depth_flow=to_save_data2_np,
+                #                     augment_flow_type=augment_flow_type)
                 
-                # set1_output_dir = f"test_output/{group_idx}_{augment_idx}_1"
-                # set2_output_dir = f"test_output/{group_idx}_{augment_idx}_2"
-                # if not os.path.exists(set1_output_dir):
-                #     os.makedirs(set1_output_dir)
-                # if not os.path.exists(set2_output_dir):
-                #     os.makedirs(set2_output_dir)
+                set1_output_dir = f"{test_output_dir}/{group_idx}_{augment_idx}_1"
+                set2_output_dir = f"{test_output_dir}/{group_idx}_{augment_idx}_2"
+                if not os.path.exists(set1_output_dir):
+                    os.makedirs(set1_output_dir)
+                if not os.path.exists(set2_output_dir):
+                    os.makedirs(set2_output_dir)
 
-                # set1_warped_img, _, _ = self.fw(set1[0], set1[2], set1[1])
-                # set2_warped_img, _, _ = self.fw(set2[0], set2[2], set2[1])
+                set1_warped_img, _, _ = self.fw(set1[0], set1[2], set1[1])
+                set2_warped_img, _, _ = self.fw(set2[0], set2[2], set2[1])
 
-                # cv2.imwrite(f"{set1_output_dir}/img0.png", set1[0].permute(1, 2, 0).cpu().numpy())
-                # plt.imsave(f"{set1_output_dir}/img0_depth.png", 1 / set1[1][0].cpu().numpy(), cmap="magma")
-                # cv2.imwrite(f"{set1_output_dir}/img1.png", set1[4].permute(1, 2, 0).cpu().numpy())
-                # plt.imsave(f"{set1_output_dir}/img1_depth.png", 1 / set1[5][0].cpu().numpy(), cmap="magma")
-                # cv2.imwrite(f"{set1_output_dir}/warped_img1.png", set1_warped_img.permute(1, 2, 0).cpu().numpy())
-                # cv2.imwrite(f"{set2_output_dir}/img0.png", set2[0].permute(1, 2, 0).cpu().numpy())
-                # plt.imsave(f"{set2_output_dir}/img0_depth.png", 1 / set2[1][0].cpu().numpy(), cmap="magma")
-                # cv2.imwrite(f"{set2_output_dir}/img1.png", set2[4].permute(1, 2, 0).cpu().numpy())
-                # plt.imsave(f"{set2_output_dir}/img1_depth.png", 1 / set2[5][0].cpu().numpy(), cmap="magma")
-                # cv2.imwrite(f"{set2_output_dir}/warped_img1.png", set2_warped_img.permute(1, 2, 0).cpu().numpy())
-                # cv2.imwrite(f"{set1_output_dir}/flow01.png", utils.color_flow(set1[2].permute(1, 2, 0).unsqueeze(0).cpu())[1])
-                # cv2.imwrite(f"{set2_output_dir}/flow01.png", utils.color_flow(set2[2].permute(1, 2, 0).unsqueeze(0).cpu())[1])
+                cv2.imwrite(f"{set1_output_dir}/img0.png", set1[0].permute(1, 2, 0).cpu().numpy())
+                plt.imsave(f"{set1_output_dir}/img0_depth.png", 1 / set1[1][0].cpu().numpy(), cmap="magma")
+                cv2.imwrite(f"{set1_output_dir}/img1.png", set1[4].permute(1, 2, 0).cpu().numpy())
+                plt.imsave(f"{set1_output_dir}/img1_depth.png", 1 / set1[5][0].cpu().numpy(), cmap="magma")
+                cv2.imwrite(f"{set1_output_dir}/warped_img1.png", set1_warped_img.permute(1, 2, 0).cpu().numpy())
+                cv2.imwrite(f"{set2_output_dir}/img0.png", set2[0].permute(1, 2, 0).cpu().numpy())
+                plt.imsave(f"{set2_output_dir}/img0_depth.png", 1 / set2[1][0].cpu().numpy(), cmap="magma")
+                cv2.imwrite(f"{set2_output_dir}/img1.png", set2[4].permute(1, 2, 0).cpu().numpy())
+                plt.imsave(f"{set2_output_dir}/img1_depth.png", 1 / set2[5][0].cpu().numpy(), cmap="magma")
+                cv2.imwrite(f"{set2_output_dir}/warped_img1.png", set2_warped_img.permute(1, 2, 0).cpu().numpy())
+                cv2.imwrite(f"{set1_output_dir}/flow01.png", utils.color_flow(set1[2].permute(1, 2, 0).unsqueeze(0).cpu())[1])
+                cv2.imwrite(f"{set2_output_dir}/flow01.png", utils.color_flow(set2[2].permute(1, 2, 0).unsqueeze(0).cpu())[1])
+
+                if set3 is not None:
+                    # special_flow, back_special_flow = set3
+                    cv2.imwrite(f"{set1_output_dir}/special_flow.png", utils.color_flow(set3[1].permute(1, 2, 0).unsqueeze(0).cpu())[1])
+                    cv2.imwrite(f"{set2_output_dir}/special_flow.png", utils.color_flow(set3[0].permute(1, 2, 0).unsqueeze(0).cpu())[1])
 
         end_augment_time = time.time()
         print(f"augmenting time = {end_augment_time - start_augment_time}")
@@ -737,6 +745,8 @@ if __name__ == "__main__":
         dataset = FiltedReDWeb("datasets/ReDWeb_V1")
         output_dir = "AugmentedDatasets/filted_ReDWeb"
         is_stereo = False
+    else:
+        print(f"{args.dataset = }")
 
 
     device = f"cuda:{args.gpu}"
@@ -759,6 +769,10 @@ if __name__ == "__main__":
             continue
 
         for img_idx in range(start, end):
+            if img_idx not in [25,33,44,45,50,70,74,88,99,138,
+                               203,207,237,240,249,250,283,287,318,319,
+                               320,349,397,404,482,523,528,556,561,562]:
+                continue
             print(f"{img_idx + 1} / {len(dataset)}: {augment_small = }")
             utils.set_seed(12345 + img_idx + epoch_idx * len(dataset))
             datas = dataset[img_idx]

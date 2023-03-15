@@ -149,8 +149,10 @@ def train(args):
     model.cuda()
     model.train()
 
-    if args.stage != 'chairs' and args.stage != 'augmentedredweb' and args.stage != 'augmenteddiml':
+    if args.stage != 'chairs' and not args.is_first_stage:
         model.module.freeze_bn()
+    # if args.stage != 'chairs' and args.stage != 'augmentedredweb' and args.stage != 'augmenteddiml':
+    #     model.module.freeze_bn()
 
     # =====
     if args.add_classifier:
@@ -177,7 +179,8 @@ def train(args):
                                         use_dropout_in_encoder=classifier_args["use_dropout_in_encoder"],
                                         use_dropout_in_classify=classifier_args["use_dropout_in_classify"],
                                         use_average_pooling=classifier_args["use_average_pooling"])
-        classifier.load_state_dict(torch.load(f"{classifier_checkpoints_dir}/{classifier_checkpoints_name}"))
+        classifier.load_state_dict(torch.load(f"{classifier_checkpoints_dir}/{classifier_checkpoints_name}",
+                                              map_location=f"cuda:{args.gpus[0]}"))
         classifier.to(args.gpus[0])
         classifier.eval()
         classify_loss_func = CrossEntropyLoss()
@@ -218,17 +221,29 @@ def train(args):
 
             # =====
             if args.add_classifier:
-                normalized_flow = flow_predictions[-1]
-                normalized_flow[:, 0] = normalized_flow[:, 0] / h
-                normalized_flow[:, 1] = normalized_flow[:, 1] / w
-                normalized_flow = normalized_flow.float()
-                normalized_depth = (image1_depth / 100).float()
-                normalized_flow_depth = torch.cat((normalized_flow, normalized_depth), axis=1)
+                if ("not_normalize_dataset" in classifier_args) and (not classifier_args["not_normalize_dataset"]):
+                    normalized_flow = flow_predictions[-1]
+                    normalized_flow[:, 0] = normalized_flow[:, 0] / h
+                    normalized_flow[:, 1] = normalized_flow[:, 1] / w
+                    normalized_flow = normalized_flow.float()
+                    normalized_depth = (image1_depth / 100).float()
+                    normalized_flow_depth = torch.cat((normalized_flow, normalized_depth), axis=1)
 
-                if not classifier_args["use_depth_in_classifier"]:
-                    predict1 = classifier(normalized_flow)
+                    if not classifier_args["use_depth_in_classifier"]:
+                        predict1 = classifier(normalized_flow)
+                    else:
+                        predict1 = classifier(normalized_flow_depth)
                 else:
-                    predict1 = classifier(normalized_flow_depth)
+                    flow = flow_predictions[-1].float()
+                    depth = image1_depth.float()
+                    flow_depth = torch.cat((flow, depth), axis=1)
+
+                    if not classifier_args["use_depth_in_classifier"]:
+                        predict1 = classifier(flow)
+                    else:
+                        predict1 = classifier(flow_depth)
+
+
                 classify_loss = classify_loss_func(predict1, label)
                 print(f"{total_steps}: loss = flow_loss + classify_loss * {classify_loss_weight:.3f}", end='')
                 print(f" = {loss.item()} + {classify_loss.item()} * {classify_loss_weight:.3f}")
@@ -263,11 +278,18 @@ def train(args):
                         results.update(evaluate.validate_sintel(model.module))
                     elif val_dataset == 'kitti':
                         results.update(evaluate.validate_kitti(model.module))
+                    elif val_dataset == 'kitti12':
+                        results.update(evaluate.validate_kitti12(model.module))
+                    elif val_dataset == 'finetunekitti':
+                        results.update(evaluate.validate_finetunekitti15(model.module))
+                        results.update(evaluate.validate_kitti12(model.module))
 
                 logger.write_dict(results)
                 
                 model.train()
-                if args.stage != 'chairs' and args.stage != 'augmentedredweb' and args.stage != 'augmenteddiml':
+                # if args.stage != 'chairs' and args.stage != 'augmentedredweb' and args.stage != 'augmenteddiml':
+                #     model.module.freeze_bn()
+                if args.stage != 'chairs' and not args.is_first_stage:
                     model.module.freeze_bn()
             
             total_steps += 1
@@ -319,6 +341,7 @@ if __name__ == '__main__':
     parser.add_argument('--max_classify_loss_weight', type=float)
     parser.add_argument('--min_classify_loss_weight', type=float)
     parser.add_argument('--early_stop', default=1e9, type=int)
+    parser.add_argument('--is_first_stage', action='store_true')
 
     args = parser.parse_args()
 

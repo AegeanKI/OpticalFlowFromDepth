@@ -183,8 +183,12 @@ class AugmentedDataset(data.Dataset):
 
 
 class DepthToFlowDataset(data.Dataset):
-    def __init__(self, normalize_dataset=True, size=None):
+    def __init__(self, normalize_dataset=True, size=None, crop_size=None, do_flip=True):
         self.normalize_dataset = normalize_dataset
+        self.crop_size = crop_size
+        self.do_flip = do_flip
+        self.h_flip_prob = 0.5
+        self.v_flip_prob = 0.1
 
         if size is not None:
             self.transform = T.Compose([
@@ -223,6 +227,30 @@ class DepthToFlowDataset(data.Dataset):
         img0_depth = self.transform(img0_depth.transpose(1, 2, 0))
         flow = self.transform(flow.transpose(1, 2, 0))
 
+        if self.do_flip:
+            if np.random.rand() < self.h_flip_prob:
+                img0 = torch.flip(img0, (2,))
+                img1 = torch.flip(img1, (2,))
+                img0_depth = torch.flip(img0_depth, (2,))
+                flow = torch.flip(flow, (2,))
+                flow[0] = flow[0] * -1.0
+
+            if np.random.rand() < self.v_flip_prob:
+                img0 = torch.flip(img0, (1,))
+                img1 = torch.flip(img1, (1,))
+                img0_depth = torch.flip(img0_depth, (1,))
+                flow = torch.flip(flow, (1,))
+                flow[1] = flow[1] * -1.0
+
+        if self.crop_size is not None:
+            y0 = np.random.randint(0, h - self.crop_size[0] + 1)
+            x0 = np.random.randint(0, w - self.crop_size[1] + 1)
+
+            img0 = img0[:, y0:y0+self.crop_size[0], x0:x0+self.crop_size[1]]
+            img1 = img1[:, y0:y0+self.crop_size[0], x0:x0+self.crop_size[1]]
+            img0_depth = img0_depth[:, y0:y0+self.crop_size[0], x0:x0+self.crop_size[1]]
+            flow = flow[:, y0:y0+self.crop_size[0], x0:x0+self.crop_size[1]]
+
         label_type = 0
         label = torch.zeros(num_classes)
         label[label_type] = 1
@@ -249,8 +277,8 @@ class AugmentedDIML(AugmentedDataset):
 
 
 class FlowDIML(DepthToFlowDataset):
-    def __init__(self, normalize_dataset=True, size=None):
-        super().__init__(normalize_dataset, size)
+    def __init__(self, normalize_dataset=True, size=None, crop_size=None):
+        super().__init__(normalize_dataset=normalize_dataset, size=size, crop_size=crop_size)
 
     def __len__(self):
         # return 1505
@@ -265,8 +293,8 @@ class FlowDIML(DepthToFlowDataset):
 
 
 class VEMDIML(DepthToFlowDataset):
-    def __init__(self, normalize_dataset=True, size=None):
-        super().__init__(normalize_dataset, size)
+    def __init__(self, normalize_dataset=True, size=None, crop_size=None):
+        super().__init__(normalize_dataset=normalize_dataset, size=size, crop_size=crop_size)
 
     def __len__(self):
         # return 1505
@@ -280,9 +308,9 @@ class VEMDIML(DepthToFlowDataset):
         return self.getitem_from_npz(group_npz_filename, random_group, idx)
 
 
-class TestFlowReDWeb(DepthToFlowDataset):
-    def __init__(self, normalize_dataset=True, size=None):
-        super().__init__(normalize_dataset, size)
+class FlowFiltedReDWeb(DepthToFlowDataset):
+    def __init__(self, normalize_dataset=True, size=None, crop_size=None):
+        super().__init__(normalize_dataset=normalize_dataset, size=size, crop_size=crop_size)
 
     def __len__(self):
         return 1698 * 2
@@ -294,9 +322,9 @@ class TestFlowReDWeb(DepthToFlowDataset):
         group_npz_filename = f"{dataset_dir}/{idx}/group.npz"
         return self.getitem_from_npz(group_npz_filename, random_group, idx)
 
-class TestVEMReDWeb(DepthToFlowDataset):
-    def __init__(self, normalize_dataset=True, size=None):
-        super().__init__(normalize_dataset, size)
+class VEMFiltedReDWeb(DepthToFlowDataset):
+    def __init__(self, normalize_dataset=True, size=None, crop_size=None):
+        super().__init__(normalize_dataset=normalize_dataset, size=size, crop_size=crop_size)
 
     def __len__(self):
         return 1698 * 2
@@ -309,7 +337,7 @@ class TestVEMReDWeb(DepthToFlowDataset):
         return self.getitem_from_npz(group_npz_filename, random_group, idx)
 
 
-class TestAugmentedReDWeb(AugmentedDataset):
+class AugmentedFiltedReDWeb(AugmentedDataset):
     def __init__(self, normalize_dataset=True, size=None, crop_size=None):
         super().__init__(normalize_dataset=normalize_dataset, size=size, crop_size=crop_size)
 
@@ -323,5 +351,24 @@ class TestAugmentedReDWeb(AugmentedDataset):
         random_set = np.random.randint(1, 3)
         npz_filename = f"{dataset_dir}/{idx}/{random_group}_{random_augment}_{random_set}.npz"
         # group_npz_filename = f"{dataset_dir}/{idx + 1698}/group.npz"
+        group_npz_filename = f"{dataset_dir}/{idx}/group.npz"
+        return self.getitem_from_npz(npz_filename, group_npz_filename, random_group, idx)
+
+
+class AugmentedVEMDIML(AugmentedDataset):
+    def __init__(self, normalize_dataset=True, size=None, crop_size=None):
+        super().__init__(normalize_dataset=normalize_dataset, size=size, crop_size=crop_size)
+
+    def __len__(self):
+        # return 1505
+        return 1505 * 2
+
+    def __getitem__(self, idx):
+        dataset_dir = f"datasets/AugmentedDatasets/DIML"
+        random_group = 1
+        random_augment = np.random.randint(0, 12)
+        random_set = np.random.randint(1, 3)
+        npz_filename = f"{dataset_dir}/{idx}/{random_group}_{random_augment}_{random_set}.npz"
+        # group_npz_filename = f"{dataset_dir}/{idx + 1505}/group.npz"
         group_npz_filename = f"{dataset_dir}/{idx}/group.npz"
         return self.getitem_from_npz(npz_filename, group_npz_filename, random_group, idx)

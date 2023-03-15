@@ -3,5 +3,6 @@ from .datasets import (FlyingChairs,
                        FlyingThings3D,
                        MpiSintel,
                        KITTI,
+                       KITTI12,
                        HD1K,
                        )

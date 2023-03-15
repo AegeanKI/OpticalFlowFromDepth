@@ -325,3 +325,22 @@ class AugmentedFiltedReDWeb(AugmentedDataset):
         # group_npz_filename = f"{dataset_dir}/{idx + 1698}/group.npz"
         group_npz_filename = f"{dataset_dir}/{idx}/group.npz"
         return self.getitem_from_npz(npz_filename, group_npz_filename, random_group, idx)
+
+
+class AugmentedVEMDIML(AugmentedDataset):
+    def __init__(self, normalize_dataset=True, size=None, crop_size=None):
+        super().__init__(normalize_dataset=normalize_dataset, size=size, crop_size=crop_size)
+
+    def __len__(self):
+        # return 1505
+        return 1505 * 2
+
+    def __getitem__(self, idx):
+        dataset_dir = f"datasets/AugmentedDatasets/DIML"
+        random_group = 1 
+        random_augment = np.random.randint(0, 12)
+        random_set = np.random.randint(1, 3)
+        npz_filename = f"{dataset_dir}/{idx}/{random_group}_{random_augment}_{random_set}.npz"
+        # group_npz_filename = f"{dataset_dir}/{idx + 1505}/group.npz"
+        group_npz_filename = f"{dataset_dir}/{idx}/group.npz"
+        return self.getitem_from_npz(npz_filename, group_npz_filename, random_group, idx)

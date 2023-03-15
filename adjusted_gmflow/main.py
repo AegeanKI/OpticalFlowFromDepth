@@ -10,6 +10,7 @@ from data import build_train_dataset
 from gmflow.gmflow import GMFlow
 from loss import flow_loss_func
 from evaluate import (validate_chairs, validate_things, validate_sintel, validate_kitti,
+                      validate_kitti12,
                       create_sintel_submission, create_kitti_submission, inference_on_dir)
 
 from utils.logger import Logger
@@ -195,7 +196,7 @@ def main(args):
         with open(f"{classifier_checkpoints_dir}/args.txt") as f:
             classifier_args = json.load(f)
         print(f"{classifier_args = }")
-        if not classifier_args["use_depth_in_classifier"]:
+        if ("use_depth_in_classifier" in classifier_args) and (not classifier_args["use_depth_in_classifier"]):
             classifier = Classifier(device=device,
                                     output_dim=classifier_args["output_dim"],
                                     dropout=classifier_args["dropout"],
@@ -317,6 +318,36 @@ def main(args):
                                           prop_radius_list=args.prop_radius_list,
                                           )
             val_results.update(results_dict)
+
+        if 'kitti12' in args.val_dataset:
+            results_dict = validate_kitti12(model_without_ddp,
+                                            padding_factor=args.padding_factor,
+                                            with_speed_metric=args.with_speed_metric,
+                                            attn_splits_list=args.attn_splits_list,
+                                            corr_radius_list=args.corr_radius_list,
+                                            prop_radius_list=args.prop_radius_list,
+                                            )
+            val_results.update(results_dict)
+
+        if 'finetunekitti' in args.val_dataset:
+            results_dict = validate_finetunekitti15(model_without_ddp,
+                                                    padding_factor=args.padding_factor,
+                                                    with_speed_metric=args.with_speed_metric,
+                                                    attn_splits_list=args.attn_splits_list,
+                                                    corr_radius_list=args.corr_radius_list,
+                                                    prop_radius_list=args.prop_radius_list,
+                                                    )
+            val_results.update(results_dict)
+            results_dict = validate_kitti12(model_without_ddp,
+                                            padding_factor=args.padding_factor,
+                                            with_speed_metric=args.with_speed_metric,
+                                            attn_splits_list=args.attn_splits_list,
+                                            corr_radius_list=args.corr_radius_list,
+                                            prop_radius_list=args.prop_radius_list,
+                                            )
+            val_results.update(results_dict)
+
+
 
         if args.save_eval_to_file:
             misc.check_path(args.checkpoint_dir)
@@ -572,6 +603,38 @@ def main(args):
                                                   corr_radius_list=args.corr_radius_list,
                                                   prop_radius_list=args.prop_radius_list,
                                                   )
+                    if args.local_rank == 0:
+                        val_results.update(results_dict)
+
+                if 'kitti12' in args.val_dataset:
+                    print("validate kitti 12")
+                    results_dict = validate_kitti12(model_without_ddp,
+                                                    padding_factor=args.padding_factor,
+                                                    with_speed_metric=args.with_speed_metric,
+                                                    attn_splits_list=args.attn_splits_list,
+                                                    corr_radius_list=args.corr_radius_list,
+                                                    prop_radius_list=args.prop_radius_list,
+                                                    )
+                    if args.local_rank == 0:
+                        val_results.update(results_dict)
+
+                if 'finetunekitti' in args.val_dataset:
+                    results_dict = validate_finetunekitti15(model_without_ddp,
+                                                            padding_factor=args.padding_factor,
+                                                            with_speed_metric=args.with_speed_metric,
+                                                            attn_splits_list=args.attn_splits_list,
+                                                            corr_radius_list=args.corr_radius_list,
+                                                            prop_radius_list=args.prop_radius_list,
+                                                            )
+                    if args.local_rank == 0:
+                        val_results.update(results_dict)
+                    results_dict = validate_kitti12(model_without_ddp,
+                                                    padding_factor=args.padding_factor,
+                                                    with_speed_metric=args.with_speed_metric,
+                                                    attn_splits_list=args.attn_splits_list,
+                                                    corr_radius_list=args.corr_radius_list,
+                                                    prop_radius_list=args.prop_radius_list,
+                                                    )
                     if args.local_rank == 0:
                         val_results.update(results_dict)
 

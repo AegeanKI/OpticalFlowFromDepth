@@ -15,7 +15,7 @@ from utils import frame_utils
 from utils.augmentor import FlowAugmentor, SparseFlowAugmentor
 # from my_dataloader import AugmentedReDWeb, AugmentedDIML, TestAugmentedReDWeb, FlowDIML, TestFlowReDWeb
 from my_dataloader import AugmentedDIML, AugmentedFiltedReDWeb, FlowDIML, FlowFiltedReDWeb
-from my_dataloader import VEMDIML, VEMFiltedReDWeb
+from my_dataloader import VEMDIML, VEMFiltedReDWeb, AugmentedVEMDIML
 
 class FlowDataset(data.Dataset):
     def __init__(self, aug_params=None, sparse=False):
@@ -184,6 +184,56 @@ class KITTI(FlowDataset):
         if split == 'training':
             self.flow_list = sorted(glob(osp.join(root, 'flow_occ/*_10.png')))
 
+        print(f"{aug_params = }")
+      
+
+class KITTI12(FlowDataset):
+    def __init__(self, aug_params=None, split='training', root='datasets/KITTI-12'):
+        super(KITTI12, self).__init__(aug_params, sparse=True)
+        if split == 'testing':
+            self.is_test = True
+
+        root = osp.join(root, split)
+        images1 = sorted(glob(osp.join(root, 'image_0/*_10.png')))
+        images2 = sorted(glob(osp.join(root, 'image_0/*_11.png')))
+
+        for img1, img2 in zip(images1, images2):
+            frame_id = img1.split('/')[-1]
+            self.extra_info += [ [frame_id] ]
+            self.image_list += [ [img1, img2] ]
+
+        if split == 'training':
+            self.flow_list = sorted(glob(osp.join(root, 'flow_occ/*_10.png')))
+
+class FineTuneKITTI15(FlowDataset):
+    def __init__(self, aug_params=None, split='training', root='datasets/KITTI'):
+        super(FineTuneKITTI15, self).__init__(aug_params, sparse=True)
+        if split == 'testing':
+            self.is_test = True
+
+        if split == 'training' or split == 'validating':
+            root = osp.join(root, 'training')
+        elif split == 'testing':
+            root = osp.join(root, 'testing')
+        images1 = sorted(glob(osp.join(root, 'image_2/*_10.png')))
+        images2 = sorted(glob(osp.join(root, 'image_2/*_11.png')))
+
+        if split == 'training':
+            images1 = images1[:160]
+            images2 = images2[:160]
+            flow_list = sorted(glob(osp.join(root, 'flow_occ/*_10.png')))
+            self.flow_list = flow_list[:160]
+        elif split == 'validating':
+            images1 = images1[160:]
+            images2 = images2[160:]
+            flow_list = sorted(glob(osp.join(root, 'flow_occ/*_10.png')))
+            self.flow_list = flow_list[160:]
+
+        for img1, img2 in zip(images1, images2):
+            frame_id = img1.split('/')[-1]
+            self.extra_info += [ [frame_id] ]
+            self.image_list += [ [img1, img2] ]
+
 
 class HD1K(FlowDataset):
     def __init__(self, aug_params=None, root='datasets/HD1k'):
@@ -201,7 +251,7 @@ class HD1K(FlowDataset):
                 self.flow_list += [flows[i]]
                 self.image_list += [ [images[i], images[i+1]] ]
 
-            seq_ix += 1
+            seq_ix += -1
 
 class RAFTAugmentedDataset(FlowDataset):
     def __init__(self, aug_params=None, split='training'):
@@ -273,6 +323,12 @@ class RAFTVEMDIML(RAFTAugmentedDataset):
         super(RAFTVEMDIML, self).__init__(aug_params)
  
         self.augmenteddataset = VEMDIML(normalize_dataset=False)
+
+class RAFTAugmentedVEMDIML(RAFTAugmentedDataset):
+    def __init__(self, aug_params=None, split='training'):
+        super(RAFTAugmentedVEMDIML, self).__init__(aug_params)
+ 
+        self.augmenteddataset = AugmentedVEMDIML(normalize_dataset=False)
 
 class RAFTFlowFiltedReDWeb(RAFTAugmentedDataset):
     def __init__(self, aug_params=None, split='training'):
@@ -355,6 +411,23 @@ def fetch_dataloader(args, TRAIN_DS='C+T+K+S+H'):
         print(f"{args = }")
         aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
         train_dataset = RAFTVEMFiltedReDWeb(aug_params, split='training')
+
+    elif args.stage == "mixed":
+        print(f"{args = }")
+        # aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
+        aug_params = {'crop_size': args.image_size, 'min_scale': -0.2, 'max_scale': 0.4, 'do_flip': False}
+        ar = RAFTAugmentedFiltedReDWeb(aug_params, split='training')
+        ad = RAFTAugmentedDIML(aug_params, split='training')
+        train_dataset = ar + ad
+
+    elif args.stage == "augmentedvemdiml":
+        print(f"{args = }")
+        aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
+        train_dataset = RAFTAugmentedVEMDIML(aug_params, split='training')
+
+    elif args.stage == "finetunekitti":
+        aug_params = {'crop_size': args.image_size, 'min_scale': -0.2, 'max_scale': 0.4, 'do_flip': False}
+        train_dataset = FineTuneKITTI15(aug_params, split='training')
 
 
     train_loader = data.DataLoader(train_dataset, batch_size=args.batch_size, 

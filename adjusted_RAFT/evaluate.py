@@ -17,6 +17,8 @@ from utils import frame_utils
 from raft import RAFT
 from utils.utils import InputPadder, forward_interpolate
 
+import cv2
+import matplotlib.pyplot as plt
 
 @torch.no_grad()
 def create_sintel_submission(model, iters=32, warm_start=False, output_path='sintel_submission'):
@@ -128,10 +130,137 @@ def validate_sintel(model, iters=32):
 
 
 @torch.no_grad()
-def validate_kitti(model, iters=24):
+def validate_kitti(model, iters=24, output_dir=None):
     """ Peform validation using the KITTI-2015 (train) split """
     model.eval()
     val_dataset = datasets.KITTI(split='training')
+
+    out_list, epe_list = [], []
+    print(f"{len(val_dataset) = }")
+    print(f"{output_dir = }")
+    for val_id in range(len(val_dataset)):
+        image1, image2, flow_gt, _, valid_gt, _ = val_dataset[val_id]
+        image1 = image1[None].cuda()
+        image2 = image2[None].cuda()
+
+        padder = InputPadder(image1.shape, mode='kitti')
+        image1, image2 = padder.pad(image1, image2)
+
+        flow_low, flow_pr = model(image1, image2, iters=iters, test_mode=True)
+        flow = padder.unpad(flow_pr[0]).cpu()
+
+        epe = torch.sum((flow - flow_gt)**2, dim=0).sqrt()
+        mag = torch.sum(flow_gt**2, dim=0).sqrt()
+
+        epe = epe.view(-1)
+        mag = mag.view(-1)
+        val = valid_gt.view(-1) >= 0.5
+
+        out = ((epe > 3.0) & ((epe/mag) > 0.05)).float()
+        epe_list.append(epe[val].mean().item())
+        out_list.append(out[val].cpu().numpy())
+
+        # output_dir_val_id = f"{output_dir}/{val_id}"
+        # if not os.path.exists(output_dir_val_id):
+        #     os.makedirs(output_dir_val_id)
+        # cv2.imwrite(f"{output_dir_val_id}/image1.png", image1[0].permute(1, 2, 0).cpu().numpy())
+        # flow_error_image = flow_viz.flow_to_image((flow_gt - flow).permute(1, 2, 0).cpu().numpy())
+        # flow_gt_image = flow_viz.flow_to_image(flow_gt.permute(1, 2, 0).cpu().numpy())
+        # flow_image = flow_viz.flow_to_image(flow.permute(1, 2, 0).cpu().cpu().numpy())
+        # cv2.imwrite(f"{output_dir_val_id}/flow_gt_image.png", flow_gt_image)
+        # cv2.imwrite(f"{output_dir_val_id}/flow_image.png", flow_image)
+        # cv2.imwrite(f"{output_dir_val_id}/flow_error_image.png", flow_gt_image)
+
+        # print(f"{val_id = }, epe = {epe[val].mean().item()}, f1 = {out[val].mean().item()}")
+
+        # with open(f"{output_dir_val_id}/epe_f1.txt", "w") as f:
+        #     f.write(f"epe = {epe[val].mean().item()}\n")
+        #     f.write(f"f1 = {100 * out[val].mean().item()}\n")
+
+        # with open(f"{output_dir}/all_epe_f1.txt", "a") as f:
+        #     f.write(f"{val_id = }, epe = {epe[val].mean().item()}, f1 = {out[val].mean().item()}\n")
+        
+        # break
+
+    epe_list = np.array(epe_list)
+    out_list = np.concatenate(out_list)
+
+    epe = np.mean(epe_list)
+    f1 = 100 * np.mean(out_list)
+
+    print("Validation KITTI: %f, %f" % (epe, f1))
+    return {'kitti-epe': epe, 'kitti-f1': f1}
+
+
+@torch.no_grad()
+def validate_kitti12(model, iters=24, output_dir=None):
+    """ Peform validation using the KITTI-2012 (train) split """
+    model.eval()
+    val_dataset = datasets.KITTI12(split='training')
+
+    out_list, epe_list = [], []
+    print(f"{len(val_dataset) = }")
+    print(f"{output_dir = }")
+    for val_id in range(len(val_dataset)):
+        image1, image2, flow_gt, _, valid_gt, _ = val_dataset[val_id]
+        image1 = image1[None].cuda()
+        image2 = image2[None].cuda()
+
+        padder = InputPadder(image1.shape, mode='kitti')
+        image1, image2 = padder.pad(image1, image2)
+
+        flow_low, flow_pr = model(image1, image2, iters=iters, test_mode=True)
+        flow = padder.unpad(flow_pr[0]).cpu()
+
+        epe = torch.sum((flow - flow_gt)**2, dim=0).sqrt()
+        mag = torch.sum(flow_gt**2, dim=0).sqrt()
+
+        epe = epe.view(-1)
+        mag = mag.view(-1)
+        val = valid_gt.view(-1) >= 0.5
+
+        out = ((epe > 3.0) & ((epe/mag) > 0.05)).float()
+        epe_list.append(epe[val].mean().item())
+        out_list.append(out[val].cpu().numpy())
+
+        # output_dir_val_id = f"{output_dir}/{val_id}"
+        # if not os.path.exists(output_dir_val_id):
+        #     os.makedirs(output_dir_val_id)
+        # cv2.imwrite(f"{output_dir_val_id}/image1.png", image1[0].permute(1, 2, 0).cpu().numpy())
+        # flow_error_image = flow_viz.flow_to_image((flow_gt - flow).permute(1, 2, 0).cpu().numpy())
+        # flow_gt_image = flow_viz.flow_to_image(flow_gt.permute(1, 2, 0).cpu().numpy())
+        # flow_image = flow_viz.flow_to_image(flow.permute(1, 2, 0).cpu().cpu().numpy())
+        # cv2.imwrite(f"{output_dir_val_id}/flow_gt_image.png", flow_gt_image)
+        # cv2.imwrite(f"{output_dir_val_id}/flow_image.png", flow_image)
+        # cv2.imwrite(f"{output_dir_val_id}/flow_error_image.png", flow_gt_image)
+
+        # print(f"{val_id = }, epe = {epe[val].mean().item()}, f1 = {out[val].mean().item()}")
+
+        # with open(f"{output_dir_val_id}/epe_f1.txt", "w") as f:
+        #     f.write(f"epe = {epe[val].mean().item()}\n")
+        #     f.write(f"f1 = {100 * out[val].mean().item()}\n")
+
+        # with open(f"{output_dir}/all_epe_f1.txt", "a") as f:
+        #     f.write(f"{val_id = }, epe = {epe[val].mean().item()}, f1 = {out[val].mean().item()}\n")
+        
+        # break
+
+    epe_list = np.array(epe_list)
+    out_list = np.concatenate(out_list)
+
+    epe = np.mean(epe_list)
+    f1 = 100 * np.mean(out_list)
+
+    print("Validation KITTI-12: %f, %f" % (epe, f1))
+    return {'kitti-epe': epe, 'kitti-f1': f1}
+
+
+@torch.no_grad()
+def validate_finetunekitti15(model, iters=24):
+    """ Peform validation using the KITTI-2015 (train) split """
+    model.eval()
+    val_dataset = datasets.FineTuneKITTI15(split='validating')
+    print(f"{len(val_dataset) = }")
 
     out_list, epe_list = [], []
     for val_id in range(len(val_dataset)):
@@ -162,7 +291,7 @@ def validate_kitti(model, iters=24):
     epe = np.mean(epe_list)
     f1 = 100 * np.mean(out_list)
 
-    print("Validation KITTI: %f, %f" % (epe, f1))
+    print("Validation Fine-tune KITTI-15: %f, %f" % (epe, f1))
     return {'kitti-epe': epe, 'kitti-f1': f1}
 
 
@@ -173,10 +302,11 @@ if __name__ == '__main__':
     parser.add_argument('--small', action='store_true', help='use small model')
     parser.add_argument('--mixed_precision', action='store_true', help='use mixed precision')
     parser.add_argument('--alternate_corr', action='store_true', help='use efficent correlation implementation')
+    parser.add_argument('--output_dir')
     args = parser.parse_args()
 
     model = torch.nn.DataParallel(RAFT(args))
-    model.load_state_dict(torch.load(args.model))
+    model.load_state_dict(torch.load(args.model, map_location="cuda:0"))
 
     model.cuda()
     model.eval()
@@ -192,6 +322,12 @@ if __name__ == '__main__':
             validate_sintel(model.module)
 
         elif args.dataset == 'kitti':
-            validate_kitti(model.module)
+            validate_kitti(model.module, output_dir=args.output_dir)
 
+        elif args.dataset == 'kitti12':
+            validate_kitti12(model.module, output_dir=args.output_dir)
+
+        elif args.dataset == 'finetunekitti':
+            validate_finetunekitti15(model.module)
+            validate_kitti12(model.module)
 

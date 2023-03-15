@@ -376,4 +376,671 @@ NUM_GPUS=4
 # --classify_loss_weight_increase -0.00002 \
 # --max_classify_loss_weight 1 \
 # --min_classify_loss_weight 0 \
+# 2>&1 | tee -a ${CHECKPOINT_DIR}/train.log
+
+# Feb 28 twcc 4,5
+# gmflow ad+s
+# name=gmflow-ad+s-noc
+# port=9989
+# NUM_GPUS=2
+
+# CHECKPOINT_DIR=checkpoints/${name} && \
+# mkdir -p ${CHECKPOINT_DIR} && \
+# CUDA_VISIBLE_DEVICES=4,5 \
+# python -m torch.distributed.launch --nproc_per_node=${NUM_GPUS} --master_port=${port} main.py \
+# --launcher pytorch \
+# --checkpoint_dir ${CHECKPOINT_DIR} \
+# --stage augmenteddiml \
+# --batch_size 16 \
+# --val_dataset sintel kitti \
+# --lr 4e-4 \
+# --image_size 384 512 \
+# --padding_factor 16 \
+# --upsample_factor 8 \
+# --with_speed_metric \
+# --val_freq 1000 \
+# --save_ckpt_freq 10000 \
+# --num_steps 100000 \
 # 2>&1 | tee -a ${checkpoint_dir}/train.log
+
+# Feb 28 twcc 6,7
+# gmflow fd+s
+# name=gmflow-fd+s-noc
+# port=9990
+# NUM_GPUS=2
+
+# CHECKPOINT_DIR=checkpoints/${name} && \
+# mkdir -p ${CHECKPOINT_DIR} && \
+# CUDA_VISIBLE_DEVICES=6,7 \
+# python -m torch.distributed.launch --nproc_per_node=${NUM_GPUS} --master_port=${port} main.py \
+# --launcher pytorch \
+# --checkpoint_dir ${CHECKPOINT_DIR} \
+# --stage flowdiml \
+# --batch_size 16 \
+# --val_dataset sintel kitti \
+# --lr 4e-4 \
+# --image_size 384 512 \
+# --padding_factor 16 \
+# --upsample_factor 8 \
+# --with_speed_metric \
+# --val_freq 1000 \
+# --save_ckpt_freq 10000 \
+# --num_steps 100000 \
+# 2>&1 | tee -a ${checkpoint_dir}/train.log
+
+# Feb 28 twcc 6,7
+# gmflow vd+s
+# name=gmflow-vd+s-noc
+# port=9990
+# NUM_GPUS=2
+
+# CHECKPOINT_DIR=checkpoints/${name} && \
+# mkdir -p ${CHECKPOINT_DIR} && \
+# CUDA_VISIBLE_DEVICES=6,7 \
+# python -m torch.distributed.launch --nproc_per_node=${NUM_GPUS} --master_port=${port} main.py \
+# --launcher pytorch \
+# --checkpoint_dir ${CHECKPOINT_DIR} \
+# --stage vemdiml \
+# --batch_size 16 \
+# --val_dataset sintel kitti \
+# --lr 4e-4 \
+# --image_size 384 512 \
+# --padding_factor 16 \
+# --upsample_factor 8 \
+# --with_speed_metric \
+# --val_freq 1000 \
+# --save_ckpt_freq 10000 \
+# --num_steps 100000 \
+# 2>&1 | tee -a ${checkpoint_dir}/train.log
+
+# Mar 1 twcc 0,1
+# gmflow ar+s
+# name=gmflow-ar+s-noc
+# port=9987
+# NUM_GPUS=2
+
+# CHECKPOINT_DIR=checkpoints/${name} && \
+# mkdir -p ${CHECKPOINT_DIR} && \
+# CUDA_VISIBLE_DEVICES=0,1 \
+# python -m torch.distributed.launch --nproc_per_node=${NUM_GPUS} --master_port=${port} main.py \
+# --launcher pytorch \
+# --checkpoint_dir ${CHECKPOINT_DIR} \
+# --stage augmentedfiltedredweb \
+# --batch_size 16 \
+# --val_dataset sintel kitti \
+# --lr 4e-4 \
+# --image_size 432 560 \
+# --padding_factor 16 \
+# --upsample_factor 8 \
+# --with_speed_metric \
+# --val_freq 1000 \
+# --save_ckpt_freq 10000 \
+# --num_steps 100000 \
+# 2>&1 | tee -a ${checkpoint_dir}/train.log
+
+# Mar 1 twcc 2,3
+# gmflow fr+s
+# name=gmflow-fr+s-noc
+# port=9988
+# NUM_GPUS=2
+
+# CHECKPOINT_DIR=checkpoints/${name} && \
+# mkdir -p ${CHECKPOINT_DIR} && \
+# CUDA_VISIBLE_DEVICES=2,3 \
+# python -m torch.distributed.launch --nproc_per_node=${NUM_GPUS} --master_port=${port} main.py \
+# --launcher pytorch \
+# --checkpoint_dir ${CHECKPOINT_DIR} \
+# --stage flowfiltedredweb \
+# --batch_size 16 \
+# --val_dataset sintel kitti \
+# --lr 4e-4 \
+# --image_size 432 560 \
+# --padding_factor 16 \
+# --upsample_factor 8 \
+# --with_speed_metric \
+# --val_freq 1000 \
+# --save_ckpt_freq 10000 \
+# --num_steps 100000 \
+# 2>&1 | tee -a ${checkpoint_dir}/train.log
+
+# Mar 1 twcc 4,5
+# gmflow vr+s
+# name=gmflow-vr+s-noc
+# port=9989
+# NUM_GPUS=2
+
+# CHECKPOINT_DIR=checkpoints/${name} && \
+# mkdir -p ${CHECKPOINT_DIR} && \
+# CUDA_VISIBLE_DEVICES=4,5 \
+# python -m torch.distributed.launch --nproc_per_node=${NUM_GPUS} --master_port=${port} main.py \
+# --launcher pytorch \
+# --checkpoint_dir ${CHECKPOINT_DIR} \
+# --stage vemfiltedredweb \
+# --batch_size 16 \
+# --val_dataset sintel kitti \
+# --lr 4e-4 \
+# --image_size 432 560 \
+# --padding_factor 16 \
+# --upsample_factor 8 \
+# --with_speed_metric \
+# --val_freq 1000 \
+# --save_ckpt_freq 10000 \
+# --num_steps 100000 \
+# 2>&1 | tee -a ${checkpoint_dir}/train.log
+
+# Mar 3 twcc 6,7
+# gmflow mixed+s-c
+# name=gmflow-mixed+s-c-2e5-1
+# port=9990
+# NUM_GPUS=2
+
+# CHECKPOINT_DIR=checkpoints/${name} && \
+# mkdir -p ${CHECKPOINT_DIR} && \
+# CUDA_VISIBLE_DEVICES=6,7 \
+# python -m torch.distributed.launch --nproc_per_node=${NUM_GPUS} --master_port=${port} main.py \
+# --launcher pytorch \
+# --checkpoint_dir ${CHECKPOINT_DIR} \
+# --stage mixed \
+# --batch_size 16 \
+# --val_dataset sintel kitti \
+# --lr 4e-4 \
+# --image_size 368 560 \
+# --padding_factor 16 \
+# --upsample_factor 8 \
+# --with_speed_metric \
+# --val_freq 1000 \
+# --save_ckpt_freq 10000 \
+# --num_steps 100000 \
+# --add_classifier \
+# --classifier_checkpoint_timestamp 1677566045.275271 \
+# --classifier_checkpoint_train_acc 0.805 \
+# --classifier_checkpoint_test_acc 0.802 \
+# --classify_loss_weight_init 1 \
+# --classify_loss_weight_increase -0.00002 \
+# --max_classify_loss_weight 1 \
+# --min_classify_loss_weight 0 \
+# 2>&1 | tee -a ${checkpoint_dir}/train.log
+
+# Mar 3 twcc 4,5
+# gmflow mixed+s-c-2nd
+# name=gmflow-mixed+s-c-2e5-1-2nd
+# port=9989
+# NUM_GPUS=2
+
+# CHECKPOINT_DIR=checkpoints/${name} && \
+# mkdir -p ${CHECKPOINT_DIR} && \
+# CUDA_VISIBLE_DEVICES=4,5 \
+# python -m torch.distributed.launch --nproc_per_node=${NUM_GPUS} --master_port=${port} main.py \
+# --launcher pytorch \
+# --checkpoint_dir ${CHECKPOINT_DIR} \
+# --stage mixed \
+# --batch_size 8 \
+# --val_dataset sintel kitti \
+# --lr 2e-4 \
+# --image_size 368 560 \
+# --padding_factor 16 \
+# --upsample_factor 8 \
+# --with_speed_metric \
+# --val_freq 1000 \
+# --save_ckpt_freq 10000 \
+# --num_steps 200000 \
+# --add_classifier \
+# --classifier_checkpoint_timestamp 1677566045.275271 \
+# --classifier_checkpoint_train_acc 0.805 \
+# --classifier_checkpoint_test_acc 0.802 \
+# --classify_loss_weight_init 1 \
+# --classify_loss_weight_increase -0.00002 \
+# --max_classify_loss_weight 1 \
+# --min_classify_loss_weight 0 \
+# 2>&1 | tee -a ${checkpoint_dir}/train.log
+
+# Mar 1 twcc 2,3
+# gmflow ctmixed+s
+# batch 8, 2e-4
+# name=gmflow-ctmixed+s-noc
+# port=9988
+# NUM_GPUS=2
+
+# CHECKPOINT_DIR=checkpoints/${name} && \
+# mkdir -p ${CHECKPOINT_DIR} && \
+# CUDA_VISIBLE_DEVICES=2,3 \
+# python -m torch.distributed.launch --nproc_per_node=${NUM_GPUS} --master_port=${port} main.py \
+# --launcher pytorch \
+# --checkpoint_dir ${CHECKPOINT_DIR} \
+# --stage mixed \
+# --resume checkpoints/pretrained/gmflow_things-e9887eda.pth \
+# --batch_size 8 \
+# --val_dataset sintel kitti \
+# --lr 2e-4 \
+# --image_size 368 560 \
+# --padding_factor 16 \
+# --upsample_factor 8 \
+# --with_speed_metric \
+# --val_freq 1000 \
+# --save_ckpt_freq 10000 \
+# --num_steps 100000 \
+# 2>&1 | tee -a ${checkpoint_dir}/train.log
+
+# Mar 3 twcc 0,1
+# gmflow ad+s-c
+# name=gmflow-ad+s-c-2e5-1
+# port=9987
+# NUM_GPUS=2
+
+# CHECKPOINT_DIR=checkpoints/${name} && \
+# mkdir -p ${CHECKPOINT_DIR} && \
+# CUDA_VISIBLE_DEVICES=0,1 \
+# python -m torch.distributed.launch --nproc_per_node=${NUM_GPUS} --master_port=${port} main.py \
+# --launcher pytorch \
+# --checkpoint_dir ${CHECKPOINT_DIR} \
+# --stage augmenteddiml \
+# --batch_size 16 \
+# --val_dataset sintel kitti \
+# --lr 4e-4 \
+# --image_size 368 560 \
+# --padding_factor 16 \
+# --upsample_factor 8 \
+# --with_speed_metric \
+# --val_freq 1000 \
+# --save_ckpt_freq 10000 \
+# --num_steps 100000 \
+# --add_classifier \
+# --classifier_checkpoint_timestamp 1677566045.275271 \
+# --classifier_checkpoint_train_acc 0.805 \
+# --classifier_checkpoint_test_acc 0.802 \
+# --classify_loss_weight_init 1 \
+# --classify_loss_weight_increase -0.00002 \
+# --max_classify_loss_weight 1 \
+# --min_classify_loss_weight 0 \
+# 2>&1 | tee -a ${checkpoint_dir}/train.log
+
+# Mar 5 twcc 0,1
+# gmflow ad+s-c
+# name=gmflow-ad+s-oldc-2e5-1
+# port=9987
+# NUM_GPUS=2
+
+# CHECKPOINT_DIR=checkpoints/${name} && \
+# mkdir -p ${CHECKPOINT_DIR} && \
+# CUDA_VISIBLE_DEVICES=0,1 \
+# python -m torch.distributed.launch --nproc_per_node=${NUM_GPUS} --master_port=${port} main.py \
+# --launcher pytorch \
+# --checkpoint_dir ${CHECKPOINT_DIR} \
+# --stage augmenteddiml \
+# --batch_size 16 \
+# --val_dataset sintel kitti \
+# --lr 4e-4 \
+# --image_size 368 560 \
+# --padding_factor 16 \
+# --upsample_factor 8 \
+# --with_speed_metric \
+# --val_freq 1000 \
+# --save_ckpt_freq 10000 \
+# --num_steps 100000 \
+# --add_classifier \
+# --classifier_checkpoint_timestamp 1672944585.6048822 \
+# --classifier_checkpoint_train_acc 0.675 \
+# --classifier_checkpoint_test_acc 0.804 \
+# --classify_loss_weight_init 1 \
+# --classify_loss_weight_increase -0.00002 \
+# --max_classify_loss_weight 1 \
+# --min_classify_loss_weight 0 \
+# 2>&1 | tee -a ${checkpoint_dir}/train.log
+
+# Mar 5 twcc 2,3
+# gmflow fd+s-c
+# name=gmflow-fd+s-oldc-2e5-1
+# port=9988
+# NUM_GPUS=2
+
+# CHECKPOINT_DIR=checkpoints/${name} && \
+# mkdir -p ${CHECKPOINT_DIR} && \
+# CUDA_VISIBLE_DEVICES=2,3 \
+# python -m torch.distributed.launch --nproc_per_node=${NUM_GPUS} --master_port=${port} main.py \
+# --launcher pytorch \
+# --checkpoint_dir ${CHECKPOINT_DIR} \
+# --stage flowdiml \
+# --batch_size 16 \
+# --val_dataset sintel kitti \
+# --lr 4e-4 \
+# --image_size 368 560 \
+# --padding_factor 16 \
+# --upsample_factor 8 \
+# --with_speed_metric \
+# --val_freq 1000 \
+# --save_ckpt_freq 10000 \
+# --num_steps 100000 \
+# --add_classifier \
+# --classifier_checkpoint_timestamp 1672944585.6048822 \
+# --classifier_checkpoint_train_acc 0.675 \
+# --classifier_checkpoint_test_acc 0.804 \
+# --classify_loss_weight_init 1 \
+# --classify_loss_weight_increase -0.00002 \
+# --max_classify_loss_weight 1 \
+# --min_classify_loss_weight 0 \
+# 2>&1 | tee -a ${checkpoint_dir}/train.log
+
+# Mar 5 twcc 4,5
+# gmflow avd+s-c
+# name=gmflow-avd+s-oldc-2e5-1
+# port=9989
+# NUM_GPUS=2
+
+# CHECKPOINT_DIR=checkpoints/${name} && \
+# mkdir -p ${CHECKPOINT_DIR} && \
+# CUDA_VISIBLE_DEVICES=4,5 \
+# python -m torch.distributed.launch --nproc_per_node=${NUM_GPUS} --master_port=${port} main.py \
+# --launcher pytorch \
+# --checkpoint_dir ${CHECKPOINT_DIR} \
+# --stage augmentedvemdiml \
+# --batch_size 16 \
+# --val_dataset sintel kitti \
+# --lr 4e-4 \
+# --image_size 368 560 \
+# --padding_factor 16 \
+# --upsample_factor 8 \
+# --with_speed_metric \
+# --val_freq 1000 \
+# --save_ckpt_freq 10000 \
+# --num_steps 100000 \
+# --add_classifier \
+# --classifier_checkpoint_timestamp 1672944585.6048822 \
+# --classifier_checkpoint_train_acc 0.675 \
+# --classifier_checkpoint_test_acc 0.804 \
+# --classify_loss_weight_init 1 \
+# --classify_loss_weight_increase -0.00002 \
+# --max_classify_loss_weight 1 \
+# --min_classify_loss_weight 0 \
+# 2>&1 | tee -a ${checkpoint_dir}/train.log
+
+# Mar 5 twcc 6,7
+# gmflow fd+s-c
+# name=gmflow-fd+s-c-2e5-1
+# port=9990
+# NUM_GPUS=2
+
+# CHECKPOINT_DIR=checkpoints/${name} && \
+# mkdir -p ${CHECKPOINT_DIR} && \
+# CUDA_VISIBLE_DEVICES=6,7 \
+# python -m torch.distributed.launch --nproc_per_node=${NUM_GPUS} --master_port=${port} main.py \
+# --launcher pytorch \
+# --checkpoint_dir ${CHECKPOINT_DIR} \
+# --stage flowdiml \
+# --batch_size 16 \
+# --val_dataset sintel kitti \
+# --lr 4e-4 \
+# --image_size 368 560 \
+# --padding_factor 16 \
+# --upsample_factor 8 \
+# --with_speed_metric \
+# --val_freq 1000 \
+# --save_ckpt_freq 10000 \
+# --num_steps 100000 \
+# --add_classifier \
+# --classifier_checkpoint_timestamp 1677566045.275271 \
+# --classifier_checkpoint_train_acc 0.805 \
+# --classifier_checkpoint_test_acc 0.802 \
+# --classify_loss_weight_init 1 \
+# --classify_loss_weight_increase -0.00002 \
+# --max_classify_loss_weight 1 \
+# --min_classify_loss_weight 0 \
+# 2>&1 | tee -a ${checkpoint_dir}/train.log
+
+# Mar 5 gmflow2 0,1
+# gmflow ad+s-c
+# name=gmflow-ad+s-c-5e5-1
+# port=9987
+# NUM_GPUS=2
+
+# CHECKPOINT_DIR=checkpoints/${name} && \
+# mkdir -p ${CHECKPOINT_DIR} && \
+# CUDA_VISIBLE_DEVICES=0,1 \
+# python -m torch.distributed.launch --nproc_per_node=${NUM_GPUS} --master_port=${port} main.py \
+# --launcher pytorch \
+# --checkpoint_dir ${CHECKPOINT_DIR} \
+# --stage augmenteddiml \
+# --batch_size 16 \
+# --val_dataset sintel kitti \
+# --lr 4e-4 \
+# --image_size 368 560 \
+# --padding_factor 16 \
+# --upsample_factor 8 \
+# --with_speed_metric \
+# --val_freq 1000 \
+# --save_ckpt_freq 10000 \
+# --num_steps 100000 \
+# --add_classifier \
+# --classifier_checkpoint_timestamp 1677566045.275271 \
+# --classifier_checkpoint_train_acc 0.805 \
+# --classifier_checkpoint_test_acc 0.802 \
+# --classify_loss_weight_init 1 \
+# --classify_loss_weight_increase -0.00005 \
+# --max_classify_loss_weight 1 \
+# --min_classify_loss_weight 0 \
+# 2>&1 | tee -a ${checkpoint_dir}/train.log
+
+# Mar 1 gmflow2 2,3
+# gmflow ctmixed+s
+# batch 8, 2e-4
+# name=gmflow-ctmixed+s-c-5e5-1
+# port=9988
+# NUM_GPUS=2
+
+# CHECKPOINT_DIR=checkpoints/${name} && \
+# mkdir -p ${CHECKPOINT_DIR} && \
+# CUDA_VISIBLE_DEVICES=2,3 \
+# python -m torch.distributed.launch --nproc_per_node=${NUM_GPUS} --master_port=${port} main.py \
+# --launcher pytorch \
+# --checkpoint_dir ${CHECKPOINT_DIR} \
+# --stage mixed \
+# --resume checkpoints/pretrained/gmflow_things-e9887eda.pth \
+# --batch_size 8 \
+# --val_dataset sintel kitti \
+# --lr 2e-4 \
+# --image_size 368 560 \
+# --padding_factor 16 \
+# --upsample_factor 8 \
+# --with_speed_metric \
+# --val_freq 1000 \
+# --save_ckpt_freq 10000 \
+# --num_steps 100000 \
+# --add_classifier \
+# --classifier_checkpoint_timestamp 1677566045.275271 \
+# --classifier_checkpoint_train_acc 0.805 \
+# --classifier_checkpoint_test_acc 0.802 \
+# --classify_loss_weight_init 1 \
+# --classify_loss_weight_increase -0.00005 \
+# --max_classify_loss_weight 1 \
+# --min_classify_loss_weight 0 \
+# 2>&1 | tee -a ${checkpoint_dir}/train.log
+
+# Mar 5 gmflow2 4,5
+# gmflow fd+s-c
+# name=gmflow-fd+s-c-5e5-1
+# port=9989
+# NUM_GPUS=2
+
+# CHECKPOINT_DIR=checkpoints/${name} && \
+# mkdir -p ${CHECKPOINT_DIR} && \
+# CUDA_VISIBLE_DEVICES=4,5 \
+# python -m torch.distributed.launch --nproc_per_node=${NUM_GPUS} --master_port=${port} main.py \
+# --launcher pytorch \
+# --checkpoint_dir ${CHECKPOINT_DIR} \
+# --stage flowdiml \
+# --batch_size 16 \
+# --val_dataset sintel kitti \
+# --lr 4e-4 \
+# --image_size 368 560 \
+# --padding_factor 16 \
+# --upsample_factor 8 \
+# --with_speed_metric \
+# --val_freq 1000 \
+# --save_ckpt_freq 10000 \
+# --num_steps 100000 \
+# --add_classifier \
+# --classifier_checkpoint_timestamp 1677566045.275271 \
+# --classifier_checkpoint_train_acc 0.805 \
+# --classifier_checkpoint_test_acc 0.802 \
+# --classify_loss_weight_init 1 \
+# --classify_loss_weight_increase -0.00005 \
+# --max_classify_loss_weight 1 \
+# --min_classify_loss_weight 0 \
+# 2>&1 | tee -a ${checkpoint_dir}/train.log
+
+# Mar 5 gmflow2 6,7
+# gmflow fd+s-c
+# name=gmflow-avd+s-c1-5e5-1
+# port=9990
+# NUM_GPUS=2
+
+# CHECKPOINT_DIR=checkpoints/${name} && \
+# mkdir -p ${CHECKPOINT_DIR} && \
+# CUDA_VISIBLE_DEVICES=6,7 \
+# python -m torch.distributed.launch --nproc_per_node=${NUM_GPUS} --master_port=${port} main.py \
+# --launcher pytorch \
+# --checkpoint_dir ${CHECKPOINT_DIR} \
+# --stage augmentedvemdiml \
+# --batch_size 16 \
+# --val_dataset sintel kitti \
+# --lr 4e-4 \
+# --image_size 368 560 \
+# --padding_factor 16 \
+# --upsample_factor 8 \
+# --with_speed_metric \
+# --val_freq 1000 \
+# --save_ckpt_freq 10000 \
+# --num_steps 100000 \
+# --add_classifier \
+# --classifier_checkpoint_timestamp 1677566045.275271 \
+# --classifier_checkpoint_train_acc 0.805 \
+# --classifier_checkpoint_test_acc 0.802 \
+# --classify_loss_weight_init 1 \
+# --classify_loss_weight_increase -0.00005 \
+# --max_classify_loss_weight 1 \
+# --min_classify_loss_weight 0 \
+# 2>&1 | tee -a ${checkpoint_dir}/train.log
+
+# Mar 6 gmflow 0,1
+# gmflow ad+s-c
+# name=gmflow-ad+s-c1-5e5-1
+# port=9987
+# NUM_GPUS=2
+
+# CHECKPOINT_DIR=checkpoints/${name} && \
+# mkdir -p ${CHECKPOINT_DIR} && \
+# CUDA_VISIBLE_DEVICES=0,1 \
+# python -m torch.distributed.launch --nproc_per_node=${NUM_GPUS} --master_port=${port} main.py \
+# --launcher pytorch \
+# --checkpoint_dir ${CHECKPOINT_DIR} \
+# --stage augmenteddiml \
+# --batch_size 16 \
+# --val_dataset sintel kitti \
+# --lr 4e-4 \
+# --image_size 368 560 \
+# --padding_factor 16 \
+# --upsample_factor 8 \
+# --with_speed_metric \
+# --val_freq 1000 \
+# --save_ckpt_freq 10000 \
+# --num_steps 100000 \
+# --add_classifier \
+# --classifier_checkpoint_timestamp 1677566045.275271 \
+# --classifier_checkpoint_train_acc 0.805 \
+# --classifier_checkpoint_test_acc 0.802 \
+# --classify_loss_weight_init 1 \
+# --classify_loss_weight_increase -0.00005 \
+# --max_classify_loss_weight 1 \
+# --min_classify_loss_weight 0 \
+# 2>&1 | tee -a ${checkpoint_dir}/train.log
+
+# Mar 6 gmflow 2,3
+# gmflow ad+s-c
+# name=gmflow-ad+s-c1-2e5-1
+# port=9988
+# NUM_GPUS=2
+
+# CHECKPOINT_DIR=checkpoints/${name} && \
+# mkdir -p ${CHECKPOINT_DIR} && \
+# CUDA_VISIBLE_DEVICES=2,3 \
+# python -m torch.distributed.launch --nproc_per_node=${NUM_GPUS} --master_port=${port} main.py \
+# --launcher pytorch \
+# --checkpoint_dir ${CHECKPOINT_DIR} \
+# --stage augmenteddiml \
+# --batch_size 16 \
+# --val_dataset sintel kitti \
+# --lr 4e-4 \
+# --image_size 368 560 \
+# --padding_factor 16 \
+# --upsample_factor 8 \
+# --with_speed_metric \
+# --val_freq 1000 \
+# --save_ckpt_freq 10000 \
+# --num_steps 100000 \
+# --add_classifier \
+# --classifier_checkpoint_timestamp 1677566045.275271 \
+# --classifier_checkpoint_train_acc 0.805 \
+# --classifier_checkpoint_test_acc 0.802 \
+# --classify_loss_weight_init 1 \
+# --classify_loss_weight_increase -0.00002 \
+# --max_classify_loss_weight 1 \
+# --min_classify_loss_weight 0 \
+# 2>&1 | tee -a ${checkpoint_dir}/train.log
+
+# Mar 6 gmflow 4,5
+# gmflow ad+s-c
+# name=gmflow-ad+s-noc-2nd
+# port=9989
+# NUM_GPUS=2
+
+# CHECKPOINT_DIR=checkpoints/${name} && \
+# mkdir -p ${CHECKPOINT_DIR} && \
+# CUDA_VISIBLE_DEVICES=4,5 \
+# python -m torch.distributed.launch --nproc_per_node=${NUM_GPUS} --master_port=${port} main.py \
+# --launcher pytorch \
+# --checkpoint_dir ${CHECKPOINT_DIR} \
+# --stage augmenteddiml \
+# --batch_size 16 \
+# --val_dataset sintel kitti \
+# --lr 4e-4 \
+# --image_size 368 560 \
+# --padding_factor 16 \
+# --upsample_factor 8 \
+# --with_speed_metric \
+# --val_freq 1000 \
+# --save_ckpt_freq 10000 \
+# --num_steps 100000 \
+# 2>&1 | tee -a ${checkpoint_dir}/train.log
+
+
+# Mar 6 gmflow 6,7
+# gmflow ad+s-c
+name=gmflow-ad+s-c1-5e5-1-3rd
+port=9990
+NUM_GPUS=2
+
+CHECKPOINT_DIR=checkpoints/${name} && \
+mkdir -p ${CHECKPOINT_DIR} && \
+CUDA_VISIBLE_DEVICES=6,7 \
+python -m torch.distributed.launch --nproc_per_node=${NUM_GPUS} --master_port=${port} main.py \
+--launcher pytorch \
+--checkpoint_dir ${CHECKPOINT_DIR} \
+--stage augmenteddiml \
+--batch_size 16 \
+--val_dataset sintel kitti \
+--lr 4e-4 \
+--image_size 368 512 \
+--padding_factor 16 \
+--upsample_factor 8 \
+--with_speed_metric \
+--val_freq 1000 \
+--save_ckpt_freq 10000 \
+--num_steps 100000 \
+--add_classifier \
+--classifier_checkpoint_timestamp 1677566045.275271 \
+--classifier_checkpoint_train_acc 0.805 \
+--classifier_checkpoint_test_acc 0.802 \
+--classify_loss_weight_init 1 \
+--classify_loss_weight_increase -0.00005 \
+--max_classify_loss_weight 1 \
+--min_classify_loss_weight 0 \
+2>&1 | tee -a ${checkpoint_dir}/train.log
