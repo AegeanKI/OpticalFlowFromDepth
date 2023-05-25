@@ -1181,12 +1181,330 @@ mkdir -p checkpoints
 
 # Mar 14 raft 0
 # check ctfixrmixed-c-5e5-1-2nd-finetune-noc
-name=raft-ctfixrmixedfinetune-noc
-gpu=0
+# name=raft-ctfixrmixedfinetune-noc
+# gpu=0
 
-python -u train.py --name ${name} --stage finetunekitti \
-    --validation finetunekitti \
-    --gpus ${gpu} --num_steps 20000 --batch_size 3 --lr 0.0001 --val_freq 1000 \
-    --image_size 288 960 --wdecay 0.00001 --gamma 0.85 \
-    --restore_ckpt checkpoints/raft-fixr-ctmixed-c1-5e5-1.pth \
-    --mixed_precision
+# python -u train.py --name ${name} --stage finetunekitti \
+#     --validation finetunekitti \
+#     --gpus ${gpu} --num_steps 20000 --batch_size 3 --lr 0.0001 --val_freq 1000 \
+#     --image_size 288 960 --wdecay 0.00001 --gamma 0.85 \
+#     --restore_ckpt checkpoints/raft-fixr-ctmixed-c1-5e5-1.pth \
+#     --mixed_precision
+
+# Apr 25 0
+# add forward backward loss (predicted back)
+# name=raft-fbp-ad+s-c1-2e5-1
+# gpu=0
+
+# python -u train.py --name ${name} --stage augmenteddiml \
+#     --validation kitti \
+#     --gpus ${gpu} --num_steps 120000 --batch_size 8 --lr 0.00025 --val_freq 1000 \
+#     --image_size 368 496 --wdecay 0.0001 \
+#     --is_first_stage \
+#     --mixed_precision \
+#     --add_classifier \
+#     --classifier_checkpoint_timestamp 1677566045.275271 \
+#     --classifier_checkpoint_train_acc 0.805 \
+#     --classifier_checkpoint_test_acc 0.802 \
+#     --classify_loss_weight_init 1 \
+#     --classify_loss_weight_increase -0.00002 \
+#     --max_classify_loss_weight 1 \
+#     --min_classify_loss_weight 0 \
+#     --add_forward_backward
+
+# Apr 25 1
+# add forward backward loss (gt back)
+# name=raft-fbg-ad+s-c1-2e5-1
+# gpu=1
+
+# python -u train.py --name ${name} --stage augmenteddiml \
+#     --validation kitti \
+#     --gpus ${gpu} --num_steps 120000 --batch_size 8 --lr 0.00025 --val_freq 1000 \
+#     --image_size 368 496 --wdecay 0.0001 \
+#     --is_first_stage \
+#     --mixed_precision \
+#     --add_classifier \
+#     --classifier_checkpoint_timestamp 1677566045.275271 \
+#     --classifier_checkpoint_train_acc 0.805 \
+#     --classifier_checkpoint_test_acc 0.802 \
+#     --classify_loss_weight_init 1 \
+#     --classify_loss_weight_increase -0.00002 \
+#     --max_classify_loss_weight 1 \
+#     --min_classify_loss_weight 0 \
+#     --add_forward_backward \
+#     --use_ground_truth_backward
+
+# Apr 25 2
+# name=raft-wofb-ad+s-c1-2e5-1
+# gpu=2
+
+# python -u train.py --name ${name} --stage augmenteddiml \
+#     --validation kitti \
+#     --gpus ${gpu} --num_steps 120000 --batch_size 8 --lr 0.00025 --val_freq 1000 \
+#     --image_size 368 496 --wdecay 0.0001 \
+#     --is_first_stage \
+#     --mixed_precision \
+#     --add_classifier \
+#     --classifier_checkpoint_timestamp 1677566045.275271 \
+#     --classifier_checkpoint_train_acc 0.805 \
+#     --classifier_checkpoint_test_acc 0.802 \
+#     --classify_loss_weight_init 1 \
+#     --classify_loss_weight_increase -0.00002 \
+#     --max_classify_loss_weight 1 \
+#     --min_classify_loss_weight 0
+
+# Apr 25 3
+# name=raft-fbp-ad+s-noc
+# gpu=3
+
+# python -u train.py --name ${name} --stage augmenteddiml \
+#     --validation kitti \
+#     --gpus ${gpu} --num_steps 120000 --batch_size 8 --lr 0.00025 --val_freq 1000 \
+#     --image_size 368 496 --wdecay 0.0001 \
+#     --is_first_stage \
+#     --mixed_precision \
+#     --add_forward_backward
+
+# Apr 27 1
+# add forward backward loss (predicted back)
+# name=raft-fbp-ad+s-c1-2e5-1
+# gpu=1
+
+# python -u train.py --name ${name} --stage augmenteddiml \
+#     --validation kitti \
+#     --gpus ${gpu} --num_steps 120000 --batch_size 8 --lr 0.00025 --val_freq 1000 \
+#     --image_size 368 496 --wdecay 0.0001 \
+#     --is_first_stage \
+#     --mixed_precision \
+#     --add_classifier \
+#     --classifier_checkpoint_timestamp 1677566045.275271 \
+#     --classifier_checkpoint_train_acc 0.805 \
+#     --classifier_checkpoint_test_acc 0.802 \
+#     --classify_loss_weight_init 1 \
+#     --classify_loss_weight_increase -0.00002 \
+#     --max_classify_loss_weight 1 \
+#     --min_classify_loss_weight 0 \
+#     --add_forward_backward
+
+# Apr 28 2
+# name=raft-wofb-ad+s-c1-2e5-1
+# gpu=2
+
+# python -u train.py --name ${name} --stage augmenteddiml \
+#     --validation kitti \
+#     --gpus ${gpu} --num_steps 120000 --batch_size 8 --lr 0.00025 --val_freq 1000 \
+#     --image_size 368 496 --wdecay 0.0001 \
+#     --is_first_stage \
+#     --mixed_precision \
+#     --add_classifier \
+#     --classifier_checkpoint_timestamp 1677566045.275271 \
+#     --classifier_checkpoint_train_acc 0.805 \
+#     --classifier_checkpoint_test_acc 0.802 \
+#     --classify_loss_weight_init 1 \
+#     --classify_loss_weight_increase -0.00002 \
+#     --max_classify_loss_weight 1 \
+#     --min_classify_loss_weight 0
+
+# Apr 28 3
+# name=raft-fbp-ad+s-noc
+# gpu=3
+
+# python -u train.py --name ${name} --stage augmenteddiml \
+#     --validation kitti \
+#     --gpus ${gpu} --num_steps 120000 --batch_size 8 --lr 0.00025 --val_freq 1000 \
+#     --image_size 368 496 --wdecay 0.0001 \
+#     --is_first_stage \
+#     --mixed_precision \
+#     --add_forward_backward
+
+# May 12 1
+# name=raft-fbp-2e5-1-ad+s-c-2e5-1
+# gpu=1
+
+# python -u train.py --name ${name} --stage augmenteddiml \
+#     --validation kitti \
+#     --gpus ${gpu} --num_steps 120000 --batch_size 8 --lr 0.00025 --val_freq 1000 \
+#     --image_size 368 496 --wdecay 0.0001 \
+#     --is_first_stage \
+#     --mixed_precision \
+#     --add_classifier \
+#     --classifier_checkpoint_timestamp 1677566045.275271 \
+#     --classifier_checkpoint_train_acc 0.805 \
+#     --classifier_checkpoint_test_acc 0.802 \
+#     --classify_loss_weight_init 1 \
+#     --classify_loss_weight_increase -0.00002 \
+#     --add_forward_backward \
+#     --forward_backward_loss_weight_init 1 \
+#     --forward_backward_loss_weight_increase -0.00002 \
+#     --max_forward_backward_loss_weight 1 \
+#     --min_forward_backward_loss_weight 0
+
+# May 12 2
+# name=raft-fbp-4e5-1-ad+s-c-2e5-1
+# gpu=2
+
+# python -u train.py --name ${name} --stage augmenteddiml \
+#     --validation kitti \
+#     --gpus ${gpu} --num_steps 120000 --batch_size 8 --lr 0.00025 --val_freq 1000 \
+#     --image_size 368 496 --wdecay 0.0001 \
+#     --is_first_stage \
+#     --mixed_precision \
+#     --add_classifier \
+#     --classifier_checkpoint_timestamp 1677566045.275271 \
+#     --classifier_checkpoint_train_acc 0.805 \
+#     --classifier_checkpoint_test_acc 0.802 \
+#     --classify_loss_weight_init 1 \
+#     --classify_loss_weight_increase -0.00002 \
+#     --add_forward_backward \
+#     --forward_backward_loss_weight_init 1 \
+#     --forward_backward_loss_weight_increase -0.00004 \
+#     --max_forward_backward_loss_weight 1 \
+#     --min_forward_backward_loss_weight 0
+
+# May 12 3
+# name=raft-wofb-ad+s-c1-2e5-1
+# gpu=3
+
+# python -u train.py --name ${name} --stage augmenteddiml \
+#     --validation kitti \
+#     --gpus ${gpu} --num_steps 120000 --batch_size 8 --lr 0.00025 --val_freq 1000 \
+#     --image_size 368 496 --wdecay 0.0001 \
+#     --is_first_stage \
+#     --mixed_precision \
+#     --add_classifier \
+#     --classifier_checkpoint_timestamp 1677566045.275271 \
+#     --classifier_checkpoint_train_acc 0.805 \
+#     --classifier_checkpoint_test_acc 0.802 \
+#     --classify_loss_weight_init 1 \
+#     --classify_loss_weight_increase -0.00002 \
+#     --max_classify_loss_weight 1 \
+#     --min_classify_loss_weight 0
+
+# May 21 1
+# name=raft-fbp-2e5-1-ad+s-c-2e5-1
+# gpu=1
+
+# python -u train.py --name ${name} --stage augmenteddiml \
+#     --validation kitti \
+#     --gpus ${gpu} --num_steps 120000 --batch_size 8 --lr 0.00025 --val_freq 1000 \
+#     --image_size 368 496 --wdecay 0.0001 \
+#     --is_first_stage \
+#     --mixed_precision \
+#     --add_classifier \
+#     --classifier_checkpoint_timestamp 1677566045.275271 \
+#     --classifier_checkpoint_train_acc 0.805 \
+#     --classifier_checkpoint_test_acc 0.802 \
+#     --classify_loss_weight_init 1 \
+#     --classify_loss_weight_increase -0.00002 \
+#     --add_forward_backward \
+#     --forward_backward_loss_weight_init 1 \
+#     --forward_backward_loss_weight_increase -0.00002 \
+#     --max_forward_backward_loss_weight 1 \
+#     --min_forward_backward_loss_weight 0
+
+# May 21 2
+# name=raft-fbp-4e5-1-ad+s-c-2e5-1
+# gpu=2
+
+# python -u train.py --name ${name} --stage augmenteddiml \
+#     --validation kitti \
+#     --gpus ${gpu} --num_steps 120000 --batch_size 8 --lr 0.00025 --val_freq 1000 \
+#     --image_size 368 496 --wdecay 0.0001 \
+#     --is_first_stage \
+#     --mixed_precision \
+#     --add_classifier \
+#     --classifier_checkpoint_timestamp 1677566045.275271 \
+#     --classifier_checkpoint_train_acc 0.805 \
+#     --classifier_checkpoint_test_acc 0.802 \
+#     --classify_loss_weight_init 1 \
+#     --classify_loss_weight_increase -0.00002 \
+#     --add_forward_backward \
+#     --forward_backward_loss_weight_init 1 \
+#     --forward_backward_loss_weight_increase -0.00004 \
+#     --max_forward_backward_loss_weight 1 \
+#     --min_forward_backward_loss_weight 0
+
+# May 21 3
+# name=raft-wofb-ad+s-c1-2e5-1
+# gpu=3
+
+# python -u train.py --name ${name} --stage augmenteddiml \
+#     --validation kitti \
+#     --gpus ${gpu} --num_steps 120000 --batch_size 8 --lr 0.00025 --val_freq 1000 \
+#     --image_size 368 496 --wdecay 0.0001 \
+#     --is_first_stage \
+#     --mixed_precision \
+#     --add_classifier \
+#     --classifier_checkpoint_timestamp 1677566045.275271 \
+#     --classifier_checkpoint_train_acc 0.805 \
+#     --classifier_checkpoint_test_acc 0.802 \
+#     --classify_loss_weight_init 1 \
+#     --classify_loss_weight_increase -0.00002 \
+#     --max_classify_loss_weight 1 \
+#     --min_classify_loss_weight 0
+
+# May 25 1
+# name=raft-fbp-0-1-ad+s-c-2e5-1
+# gpu=1
+
+# python -u train.py --name ${name} --stage augmenteddiml \
+#     --validation kitti \
+#     --gpus ${gpu} --num_steps 120000 --batch_size 8 --lr 0.00025 --val_freq 1000 \
+#     --image_size 368 496 --wdecay 0.0001 \
+#     --is_first_stage \
+#     --mixed_precision \
+#     --add_classifier \
+#     --classifier_checkpoint_timestamp 1677566045.275271 \
+#     --classifier_checkpoint_train_acc 0.805 \
+#     --classifier_checkpoint_test_acc 0.802 \
+#     --classify_loss_weight_init 1 \
+#     --classify_loss_weight_increase -0.00002 \
+#     --add_forward_backward \
+#     --forward_backward_loss_weight_init 1 \
+#     --forward_backward_loss_weight_increase 0 \
+#     --max_forward_backward_loss_weight 1 \
+#     --min_forward_backward_loss_weight 0
+
+# May 25 2
+# name=raft-fbp-1e5-1-ad+s-c-2e5-1
+# gpu=2
+
+# python -u train.py --name ${name} --stage augmenteddiml \
+#     --validation kitti \
+#     --gpus ${gpu} --num_steps 120000 --batch_size 8 --lr 0.00025 --val_freq 1000 \
+#     --image_size 368 496 --wdecay 0.0001 \
+#     --is_first_stage \
+#     --mixed_precision \
+#     --add_classifier \
+#     --classifier_checkpoint_timestamp 1677566045.275271 \
+#     --classifier_checkpoint_train_acc 0.805 \
+#     --classifier_checkpoint_test_acc 0.802 \
+#     --classify_loss_weight_init 1 \
+#     --classify_loss_weight_increase -0.00002 \
+#     --add_forward_backward \
+#     --forward_backward_loss_weight_init 1 \
+#     --forward_backward_loss_weight_increase -0.00001 \
+#     --max_forward_backward_loss_weight 1 \
+#     --min_forward_backward_loss_weight 0
+
+# May 25 3
+name=raft-fbp-8e5-1-ad+s-c-2e5-1
+gpu=3
+
+python -u train.py --name ${name} --stage augmenteddiml \
+    --validation kitti \
+    --gpus ${gpu} --num_steps 120000 --batch_size 8 --lr 0.00025 --val_freq 1000 \
+    --image_size 368 496 --wdecay 0.0001 \
+    --is_first_stage \
+    --mixed_precision \
+    --add_classifier \
+    --classifier_checkpoint_timestamp 1677566045.275271 \
+    --classifier_checkpoint_train_acc 0.805 \
+    --classifier_checkpoint_test_acc 0.802 \
+    --classify_loss_weight_init 1 \
+    --classify_loss_weight_increase -0.00002 \
+    --add_forward_backward \
+    --forward_backward_loss_weight_init 1 \
+    --forward_backward_loss_weight_increase -0.00008 \
+    --max_forward_backward_loss_weight 1 \
+    --min_forward_backward_loss_weight 0

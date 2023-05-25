@@ -263,32 +263,40 @@ class RAFTAugmentedDataset(FlowDataset):
         return len(self.augmenteddataset)
 
     def __getitem__(self, idx):
-        img1, img2, flow, img1_depth, label = self.augmenteddataset.__getitem__(idx)
+        img1, img2, flow, back_flow, img1_depth, img2_depth, label = self.augmenteddataset.__getitem__(idx)
         valid = None
+        back_valid = None
         img1 = img1.permute(1, 2, 0).numpy().astype(np.uint8)
         img2 = img2.permute(1, 2, 0).numpy().astype(np.uint8)
         flow = flow.permute(1, 2, 0).numpy()
+        back_flow = back_flow.permute(1, 2, 0).numpy()
         img1_depth = img1_depth.permute(1, 2, 0).numpy()
+        img2_depth = img2_depth.permute(1, 2, 0).numpy()
+
         if self.augmentor is not None:
             if self.sparse:
                 img1, img2, flow, valid = self.augmentor(img1=img1, img2=img2, flow=flow, valid=valid)
             else:
-                img1, img2, flow, img1_depth = self.augmentor(img1=img1, img2=img2, flow=flow, img1_depth=img1_depth)
+                img1, img2, flow, back_flow, img1_depth, img2_depth = self.augmentor(img1=img1, img2=img2, flow=flow, back_flow=back_flow, img1_depth=img1_depth, img2_depth=img2_depth)
 
 
         img1 = torch.from_numpy(img1).permute(2, 0, 1).float()
         img2 = torch.from_numpy(img2).permute(2, 0, 1).float()
         flow = torch.from_numpy(flow).permute(2, 0, 1).float()
+        back_flow = torch.from_numpy(back_flow).permute(2, 0, 1).float()
         img1_depth = torch.from_numpy(img1_depth).permute(2, 0, 1).float()
+        img2_depth = torch.from_numpy(img2_depth).permute(2, 0, 1).float()
 
         if valid is not None:
             valid = torch.from_numpy(valid)
         else:
             valid = (flow[0].abs() < 1000) & (flow[1].abs() < 1000)
+            back_valid = (back_flow[0].abs() < 1000) & (back_flow[1].abs() < 1000)
 
         valid = valid & (img1_depth[0] != 100)
+        back_valid = back_valid & (img2_depth[0] != 100)
 
-        return img1, img2, flow, img1_depth, valid.float(), label
+        return img1, img2, flow, back_flow, img1_depth, img2_depth, valid.float(), back_valid.float(), label
 
 
 # class RAFTAugmentedReDWeb(RAFTAugmentedDataset):

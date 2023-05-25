@@ -64,7 +64,7 @@ class FlowAugmentor:
 
         return img1, img2
 
-    def spatial_transform(self, img1, img2, flow, img1_depth=None):
+    def spatial_transform(self, img1, img2, flow, back_flow=None, img1_depth=None, img2_depth=None):
         # randomly sample scale
         ht, wd = img1.shape[:2]
         min_scale = np.maximum(
@@ -87,24 +87,40 @@ class FlowAugmentor:
             img2 = cv2.resize(img2, None, fx=scale_x, fy=scale_y, interpolation=cv2.INTER_LINEAR)
             flow = cv2.resize(flow, None, fx=scale_x, fy=scale_y, interpolation=cv2.INTER_LINEAR)
             flow = flow * [scale_x, scale_y]
+            if back_flow is not None:
+                back_flow = cv2.resize(back_flow, None, fx=scale_x, fy=scale_y, interpolation=cv2.INTER_LINEAR)
+                back_flow = back_flow * [scale_x, scale_y]
+
             if img1_depth is not None:
                 img1_depth = cv2.resize(img1_depth, None, fx=scale_x, fy=scale_y, interpolation=cv2.INTER_LINEAR)
                 img1_depth = np.expand_dims(img1_depth, 2)
+
+            if img2_depth is not None:
+                img2_depth = cv2.resize(img2_depth, None, fx=scale_x, fy=scale_y, interpolation=cv2.INTER_LINEAR)
+                img2_depth = np.expand_dims(img2_depth, 2)
 
         if self.do_flip:
             if np.random.rand() < self.h_flip_prob: # h-flip
                 img1 = img1[:, ::-1]
                 img2 = img2[:, ::-1]
                 flow = flow[:, ::-1] * [-1.0, 1.0]
+                if back_flow is not None:
+                    back_flow = back_flow[:, ::-1] * [-1.0, 1.0]
                 if img1_depth is not None:
                     img1_depth = img1_depth[:, ::-1]
+                if img2_depth is not None:
+                    img2_depth = img2_depth[:, ::-1]
 
             if np.random.rand() < self.v_flip_prob: # v-flip
                 img1 = img1[::-1, :]
                 img2 = img2[::-1, :]
                 flow = flow[::-1, :] * [1.0, -1.0]
+                if back_flow is not None:
+                    back_flow = back_flow[::-1, :] * [1.0, -1.0]
                 if img1_depth is not None:
                     img1_depth = img1_depth[::-1, :]
+                if img2_depth is not None:
+                    img2_depth = img2_depth[::-1, :]
 
         y0 = np.random.randint(0, img1.shape[0] - self.crop_size[0])
         x0 = np.random.randint(0, img1.shape[1] - self.crop_size[1])
@@ -112,23 +128,31 @@ class FlowAugmentor:
         img1 = img1[y0:y0+self.crop_size[0], x0:x0+self.crop_size[1]]
         img2 = img2[y0:y0+self.crop_size[0], x0:x0+self.crop_size[1]]
         flow = flow[y0:y0+self.crop_size[0], x0:x0+self.crop_size[1]]
+        if back_flow is not None:
+            back_flow = back_flow[y0:y0+self.crop_size[0], x0:x0+self.crop_size[1]]
         if img1_depth is not None:
             img1_depth = img1_depth[y0:y0+self.crop_size[0], x0:x0+self.crop_size[1]]
+        if img2_depth is not None:
+            img2_depth = img2_depth[y0:y0+self.crop_size[0], x0:x0+self.crop_size[1]]
 
-        return img1, img2, flow, img1_depth
+        return img1, img2, flow, back_flow, img1_depth, img2_depth
 
-    def __call__(self, img1, img2, flow, img1_depth=None):
+    def __call__(self, img1, img2, flow, back_flow=None, img1_depth=None, img2_depth=None):
         img1, img2 = self.color_transform(img1, img2)
         img1, img2 = self.eraser_transform(img1, img2)
-        img1, img2, flow, img1_depth = self.spatial_transform(img1, img2, flow, img1_depth)
+        img1, img2, flow, back_flow, img1_depth, img2_depth = self.spatial_transform(img1, img2, flow, back_flow, img1_depth, img2_depth)
 
         img1 = np.ascontiguousarray(img1)
         img2 = np.ascontiguousarray(img2)
         flow = np.ascontiguousarray(flow)
+        if back_flow is not None:
+            back_flow = np.ascontiguousarray(back_flow)
         if img1_depth is not None:
             img1_depth = np.ascontiguousarray(img1_depth)
+        if img2_depth is not None:
+            img2_depth = np.ascontiguousarray(img2_depth)
 
-        return img1, img2, flow, img1_depth
+        return img1, img2, flow, back_flow, img1_depth, img2_depth
 
 class SparseFlowAugmentor:
     def __init__(self, crop_size, min_scale=-0.2, max_scale=0.5, do_flip=False):

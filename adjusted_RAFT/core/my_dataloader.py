@@ -119,26 +119,34 @@ class AugmentedDataset(data.Dataset):
             img0 = group_img_depth_flow[0:3]
             img0_depth = group_img_depth_flow[3:4]
             img1 = group_img_depth_flow[4:7]
+            img1_depth = group_img_depth_flow[7:8]
         elif random_group == 1:
             img0 = group_img_depth_flow[4:7]
             img0_depth = group_img_depth_flow[7:8]
             img1 = group_img_depth_flow[8:11]
+            img1_depth = group_img_depth_flow[11:12]
         elif random_group == 2:
             img0 = group_img_depth_flow[0:3]
             img0_depth = group_img_depth_flow[3:4]
             img1 = group_img_depth_flow[8:11]
+            img1_depth = group_img_depth_flow[11:12]
         img0 = self.transform(img0.transpose(1, 2, 0))
         img1 = self.transform(img1.transpose(1, 2, 0))
         img0_depth = self.transform(img0_depth.transpose(1, 2, 0))
+        img1_depth = self.transform(img1_depth.transpose(1, 2, 0))
 
         if self.normalize_dataset:
             if augment_img == 0:
                 img_depth_flow[4] = img_depth_flow[4] / h
                 img_depth_flow[5] = img_depth_flow[5] / w
+                img_depth_flow[6] = img_depth_flow[6] / h
+                img_depth_flow[7] = img_depth_flow[7] / w
                 img_depth_flow[3] = img_depth_flow[3] / 100
             else:
                 img_depth_flow[0] = img_depth_flow[0] / h
                 img_depth_flow[1] = img_depth_flow[1] / w
+                img_depth_flow[2] = img_depth_flow[2] / h
+                img_depth_flow[3] = img_depth_flow[3] / w
                 img_depth_flow[7] = img_depth_flow[7] / 100
 
         img_depth_flow = self.transform(img_depth_flow.transpose(1, 2, 0))
@@ -147,24 +155,33 @@ class AugmentedDataset(data.Dataset):
             img0 = img_depth_flow[0:3]
             img0_depth = img_depth_flow[3:4]
             flow = img_depth_flow[4:6]
+            back_flow = img_depth_flow[6:8]
         else:
             flow = img_depth_flow[0:2]
+            back_flow = img_depth_flow[2:4]
             img1 = img_depth_flow[4:7]
+            img1_depth = img_depth_flow[7:8]
 
         if self.do_flip:
             if np.random.rand() < self.h_flip_prob:
                 img0 = torch.flip(img0, (2,))
                 img1 = torch.flip(img1, (2,))
                 img0_depth = torch.flip(img0_depth, (2,))
+                img1_depth = torch.flip(img1_depth, (2,))
                 flow = torch.flip(flow, (2,))
                 flow[0] = flow[0] * -1.0
+                back_flow = torch.flip(back_flow, (2,))
+                back_flow[0] = back_flow[0] * -1.0
 
             if np.random.rand() < self.v_flip_prob:
                 img0 = torch.flip(img0, (1,))
                 img1 = torch.flip(img1, (1,))
                 img0_depth = torch.flip(img0_depth, (1,))
+                img1_depth = torch.flip(img1_depth, (1,))
                 flow = torch.flip(flow, (1,))
                 flow[1] = flow[1] * -1.0
+                back_flow = torch.flip(back_flow, (1,))
+                back_flow[1] = back_flow[1] * -1.0
 
         if self.crop_size is not None:
             y0 = np.random.randint(0, h - self.crop_size[0] + 1)
@@ -173,13 +190,16 @@ class AugmentedDataset(data.Dataset):
             img0 = img0[:, y0:y0+self.crop_size[0], x0:x0+self.crop_size[1]]
             img1 = img1[:, y0:y0+self.crop_size[0], x0:x0+self.crop_size[1]]
             img0_depth = img0_depth[:, y0:y0+self.crop_size[0], x0:x0+self.crop_size[1]]
+            img1_depth = img1_depth[:, y0:y0+self.crop_size[0], x0:x0+self.crop_size[1]]
             flow = flow[:, y0:y0+self.crop_size[0], x0:x0+self.crop_size[1]]
+            back_flow = back_flow[:, y0:y0+self.crop_size[0], x0:x0+self.crop_size[1]]
 
 
         label_type = max(0, augment_flow_type - 4)
         label = torch.zeros(num_classes)
         label[label_type] = 1
-        return img0, img1, flow, img0_depth, label
+        return img0, img1, flow, back_flow, img0_depth, img1_depth, label
+        # return img0, img1, flow, img0_depth, label
 
 
 class DepthToFlowDataset(data.Dataset):
@@ -211,36 +231,50 @@ class DepthToFlowDataset(data.Dataset):
             img0 = group_img_depth_flow[0:3]
             img0_depth = group_img_depth_flow[3:4]
             img1 = group_img_depth_flow[4:7]
+            img1_depth = group_img_depth_flow[7:8]
             flow = group_img_depth_flow[12:14]
+            back_flow = group_img_depth_flow[14:16]
         elif random_group == 1:
             img0 = group_img_depth_flow[4:7]
             img0_depth = group_img_depth_flow[7:8]
             img1 = group_img_depth_flow[8:11]
+            img1_depth = group_img_depth_flow[11:12]
             flow = group_img_depth_flow[16:18]
+            back_flow = group_img_depth_flow[18:20]
         elif random_group == 2:
             img0 = group_img_depth_flow[0:3]
             img0_depth = group_img_depth_flow[3:4]
             img1 = group_img_depth_flow[8:11]
+            img1_depth = group_img_depth_flow[11:12]
             flow = group_img_depth_flow[20:22]
+            back_flow = group_img_depth_flow[22:24]
         img0 = self.transform(img0.transpose(1, 2, 0))
         img1 = self.transform(img1.transpose(1, 2, 0))
         img0_depth = self.transform(img0_depth.transpose(1, 2, 0))
+        img1_depth = self.transform(img1_depth.transpose(1, 2, 0))
         flow = self.transform(flow.transpose(1, 2, 0))
+        back_flow = self.transform(back_flow.transpose(1, 2, 0))
 
         if self.do_flip:
             if np.random.rand() < self.h_flip_prob:
                 img0 = torch.flip(img0, (2,))
                 img1 = torch.flip(img1, (2,))
                 img0_depth = torch.flip(img0_depth, (2,))
+                img1_depth = torch.flip(img1_depth, (2,))
                 flow = torch.flip(flow, (2,))
                 flow[0] = flow[0] * -1.0
+                back_flow = torch.flip(back_flow, (2,))
+                back_flow[0] = back_flow[0] * -1.0
 
             if np.random.rand() < self.v_flip_prob:
                 img0 = torch.flip(img0, (1,))
                 img1 = torch.flip(img1, (1,))
                 img0_depth = torch.flip(img0_depth, (1,))
+                img1_depth = torch.flip(img1_depth, (1,))
                 flow = torch.flip(flow, (1,))
                 flow[1] = flow[1] * -1.0
+                back_flow = torch.flip(back_flow, (1,))
+                back_flow[1] = back_flow[1] * -1.0
 
         if self.crop_size is not None:
             y0 = np.random.randint(0, h - self.crop_size[0] + 1)
@@ -249,12 +283,15 @@ class DepthToFlowDataset(data.Dataset):
             img0 = img0[:, y0:y0+self.crop_size[0], x0:x0+self.crop_size[1]]
             img1 = img1[:, y0:y0+self.crop_size[0], x0:x0+self.crop_size[1]]
             img0_depth = img0_depth[:, y0:y0+self.crop_size[0], x0:x0+self.crop_size[1]]
+            img1_depth = img1_depth[:, y0:y0+self.crop_size[0], x0:x0+self.crop_size[1]]
             flow = flow[:, y0:y0+self.crop_size[0], x0:x0+self.crop_size[1]]
+            back_flow = back_flow[:, y0:y0+self.crop_size[0], x0:x0+self.crop_size[1]]
 
         label_type = 0
         label = torch.zeros(num_classes)
         label[label_type] = 1
-        return img0, img1, flow, img0_depth, label
+        return img0, img1, flow, back_flow, img0_depth, img1_depth, label
+        # return img0, img1, flow, img0_depth, label
 
 
 class AugmentedDIML(AugmentedDataset):
@@ -266,7 +303,9 @@ class AugmentedDIML(AugmentedDataset):
         return 1505 * 2
 
     def __getitem__(self, idx):
-        dataset_dir = f"datasets/AugmentedDatasets/DIML"
+        # dataset_dir = f"datasets/AugmentedDatasets/DIML"
+        images_dirs = ["dataA", "dataB", "dataC"]
+        dataset_dir = f"datasets/AugmentedDatasets/DIML/{images_dirs[int((idx % 1505)/502)]}"
         random_group = np.random.randint(0, 3)
         # random_augment = np.random.randint(0, 12)
         if np.random.randint(0, 2) == 1:

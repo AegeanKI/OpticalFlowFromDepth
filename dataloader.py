@@ -66,12 +66,11 @@ class DIML(data.Dataset):
 
 
     def __getitem__(self, idx):
-        # print(f"{idx = }")
         img_name = self.img_names[idx][:-1].split(".")[0]
-        print(f"{img_name = }")
         img0_path = f"{self.dataset_dir}/train/LR/outleft/{img_name}.png"
         img1_path = f"{self.dataset_dir}/train/LR/outright/{img_name}.png"
         disp0_path = f"{self.dataset_dir}/train/LR/disparity/{img_name}.png"
+        print(f"{img0_path = }")
 
         img0, img_size = utils.get_img(img0_path)
         img1, _ = utils.get_img(img1_path)
