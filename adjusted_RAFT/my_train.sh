@@ -1488,23 +1488,256 @@ mkdir -p checkpoints
 #     --min_forward_backward_loss_weight 0
 
 # May 25 3
-name=raft-fbp-8e5-1-ad+s-c-2e5-1
+# name=raft-fbp-8e5-1-ad+s-c-2e5-1
+# gpu=3
+
+# python -u train.py --name ${name} --stage augmenteddiml \
+#     --validation kitti \
+#     --gpus ${gpu} --num_steps 120000 --batch_size 8 --lr 0.00025 --val_freq 1000 \
+#     --image_size 368 496 --wdecay 0.0001 \
+#     --is_first_stage \
+#     --mixed_precision \
+#     --add_classifier \
+#     --classifier_checkpoint_timestamp 1677566045.275271 \
+#     --classifier_checkpoint_train_acc 0.805 \
+#     --classifier_checkpoint_test_acc 0.802 \
+#     --classify_loss_weight_init 1 \
+#     --classify_loss_weight_increase -0.00002 \
+#     --add_forward_backward \
+#     --forward_backward_loss_weight_init 1 \
+#     --forward_backward_loss_weight_increase -0.00008 \
+#     --max_forward_backward_loss_weight 1 \
+#     --min_forward_backward_loss_weight 0
+
+# Jun 3 1
+# name=raft-fbp-0-1-ad+s-c-2e5-1
+# gpu=1
+
+# python -u train.py --name ${name} --stage augmenteddiml \
+#     --validation kitti \
+#     --gpus ${gpu} --num_steps 120000 --batch_size 8 --lr 0.00025 --val_freq 1000 \
+#     --image_size 368 496 --wdecay 0.0001 \
+#     --is_first_stage \
+#     --mixed_precision \
+#     --add_classifier \
+#     --classifier_checkpoint_timestamp 1677566045.275271 \
+#     --classifier_checkpoint_train_acc 0.805 \
+#     --classifier_checkpoint_test_acc 0.802 \
+#     --classify_loss_weight_init 1 \
+#     --classify_loss_weight_increase -0.00002 \
+#     --add_forward_backward \
+#     --forward_backward_loss_weight_init 1 \
+#     --forward_backward_loss_weight_increase 0 \
+#     --max_forward_backward_loss_weight 1 \
+#     --min_forward_backward_loss_weight 0
+
+# Jun 3 1
+# name=raft-fbp-0-2-ad+s-c-2e5-1
+# gpu=2
+
+# python -u train.py --name ${name} --stage augmenteddiml \
+#     --validation kitti \
+#     --gpus ${gpu} --num_steps 120000 --batch_size 8 --lr 0.00025 --val_freq 1000 \
+#     --image_size 368 496 --wdecay 0.0001 \
+#     --is_first_stage \
+#     --mixed_precision \
+#     --add_classifier \
+#     --classifier_checkpoint_timestamp 1677566045.275271 \
+#     --classifier_checkpoint_train_acc 0.805 \
+#     --classifier_checkpoint_test_acc 0.802 \
+#     --classify_loss_weight_init 1 \
+#     --classify_loss_weight_increase -0.00002 \
+#     --add_forward_backward \
+#     --forward_backward_loss_weight_init 2 \
+#     --forward_backward_loss_weight_increase 0 \
+#     --max_forward_backward_loss_weight 2 \
+#     --min_forward_backward_loss_weight 0
+
+# Jun 3 3
+# name=raft-wofb-ad+s-c1-2e5-1
+# gpu=3
+
+# python -u train.py --name ${name} --stage augmenteddiml \
+#     --validation kitti \
+#     --gpus ${gpu} --num_steps 120000 --batch_size 8 --lr 0.00025 --val_freq 1000 \
+#     --image_size 368 496 --wdecay 0.0001 \
+#     --is_first_stage \
+#     --mixed_precision \
+#     --add_classifier \
+#     --classifier_checkpoint_timestamp 1677566045.275271 \
+#     --classifier_checkpoint_train_acc 0.805 \
+#     --classifier_checkpoint_test_acc 0.802 \
+#     --classify_loss_weight_init 1 \
+#     --classify_loss_weight_increase -0.00002 \
+#     --max_classify_loss_weight 1 \
+#     --min_classify_loss_weight 0
+
+# Jun 15 0
+# name=raft-dco-noc
+# gpu=0
+
+# python -u train.py --name ${name} --stage dcoco \
+#     --validation kitti \
+#     --gpus ${gpu} --num_steps 100000 --batch_size 6 --lr 0.0004 --val_freq 1000 \
+#     --image_size 368 496 --wdecay 0.0001 \
+#     --is_first_stage \
+#     --mixed_precision
+
+# Jun 15 1
+# name=raft-edco-noc
+# gpu=1
+
+# python -u train.py --name ${name} --stage extendeddcoco \
+#     --validation kitti \
+#     --gpus ${gpu} --num_steps 100000 --batch_size 6 --lr 0.0004 --val_freq 1000 \
+#     --image_size 368 496 --wdecay 0.0001 \
+#     --is_first_stage \
+#     --mixed_precision
+
+
+# Jun 15 2
+# name=raft-adco-noc
+# gpu=2
+
+# python -u train.py --name ${name} --stage augmenteddcoco \
+#     --validation kitti \
+#     --gpus ${gpu} --num_steps 100000 --batch_size 6 --lr 0.0004 --val_freq 1000 \
+#     --image_size 368 496 --wdecay 0.0001 \
+#     --is_first_stage \
+#     --mixed_precision
+
+# Jul 19 0
+# name=raft-20kdcoco-noc
+# gpu=0
+
+# python -u train.py --name ${name} --stage dcoco \
+#     --validation kitti \
+#     --gpus ${gpu} --num_steps 100000 --batch_size 6 --lr 0.0004 --val_freq 1000 \
+#     --image_size 368 496 --wdecay 0.0001 \
+#     --is_first_stage \
+#     --mixed_precision
+
+# Jul 19 1
+# name=raft-20kdcoco2-noc
+# gpu=1
+
+# python -u train.py --name ${name} --stage dcoco2 \
+#     --validation kitti \
+#     --gpus ${gpu} --num_steps 100000 --batch_size 6 --lr 0.0004 --val_freq 1000 \
+#     --image_size 368 496 --wdecay 0.0001 \
+#     --is_first_stage \
+#     --mixed_precision
+
+# Jul 19 2
+# name=raft-20kexdcoco-noc
+# gpu=2
+
+# python -u train.py --name ${name} --stage extendeddcoco \
+#     --validation kitti \
+#     --gpus ${gpu} --num_steps 100000 --batch_size 6 --lr 0.0004 --val_freq 1000 \
+#     --image_size 368 496 --wdecay 0.0001 \
+#     --is_first_stage \
+#     --mixed_precision
+
+# Jul 19 3
+# name=raft-20kaudcoco-noc
+# gpu=3
+
+# python -u train.py --name ${name} --stage augmenteddcoco \
+#     --validation kitti \
+#     --gpus ${gpu} --num_steps 100000 --batch_size 6 --lr 0.0004 --val_freq 1000 \
+#     --image_size 368 496 --wdecay 0.0001 \
+#     --is_first_stage \
+#     --mixed_precision
+
+# Aug 5 0
+# name=raft-20kaudcoco-noc-120k8
+# gpu=0
+
+# python -u train.py --name ${name} --stage augmenteddcoco \
+#     --validation kitti \
+#     --gpus ${gpu} --num_steps 120000 --batch_size 8 --lr 0.00025 --val_freq 1000 \
+#     --image_size 368 496 --wdecay 0.0001 \
+#     --is_first_stage \
+#     --mixed_precision
+
+# Aug 5 1
+# name=raft-20kaudcoco-noc-240k8
+# gpu=1
+
+# python -u train.py --name ${name} --stage augmenteddcoco \
+#     --validation kitti \
+#     --gpus ${gpu} --num_steps 240000 --batch_size 8 --lr 0.00025 --val_freq 1000 \
+#     --image_size 368 496 --wdecay 0.0001 \
+#     --is_first_stage \
+#     --mixed_precision
+
+# Aug 5 2
+# name=raft-20kaingdcoco-noc-120k8
+# gpu=2
+
+# python -u train.py --name ${name} --stage augmentingdcoco \
+#     --validation kitti \
+#     --gpus ${gpu} --num_steps 120000 --batch_size 8 --lr 0.00025 --val_freq 1000 \
+#     --image_size 368 496 --wdecay 0.0001 \
+#     --is_first_stage \
+#     --mixed_precision
+
+# Aug 5 3
+# name=raft-20kaingdcoco-noc-240k8
+# gpu=3
+
+# python -u train.py --name ${name} --stage augmentingdcoco \
+#     --validation kitti \
+#     --gpus ${gpu} --num_steps 240000 --batch_size 8 --lr 0.00025 --val_freq 1000 \
+#     --image_size 368 496 --wdecay 0.0001 \
+#     --is_first_stage \
+#     --mixed_precision
+
+# Aug 14 0
+# name=raft-20kaudcoco-noc-120k8
+# gpu=0
+
+# python -u train.py --name ${name} --stage augmenteddcoco \
+#     --validation kitti \
+#     --restore_ckpt checkpoints/62000_raft-20kaudcoco-noc-120k8.pth \
+#     --gpus ${gpu} --num_steps 120000 --batch_size 8 --lr 0.00025 --val_freq 1000 \
+#     --image_size 368 496 --wdecay 0.0001 \
+#     --is_first_stage \
+#     --mixed_precision
+
+# Aug 14 1
+# name=raft-20kaudcoco-noc-240k8
+# gpu=1
+
+# python -u train.py --name ${name} --stage augmenteddcoco \
+#     --validation kitti \
+#     --restore_ckpt checkpoints/62000_raft-20kaudcoco-noc-240k8.pth \
+#     --gpus ${gpu} --num_steps 240000 --batch_size 8 --lr 0.00025 --val_freq 1000 \
+#     --image_size 368 496 --wdecay 0.0001 \
+#     --is_first_stage \
+#     --mixed_precision
+
+# Aug 14 2
+# name=raft-20kaingdcoco-noc-120k8
+# gpu=2
+
+# python -u train.py --name ${name} --stage augmentingdcoco \
+#     --validation kitti \
+#     --restore_ckpt checkpoints/49000_raft-20kaingdcoco-noc-120k8.pth \
+#     --gpus ${gpu} --num_steps 120000 --batch_size 8 --lr 0.00025 --val_freq 1000 \
+#     --image_size 368 496 --wdecay 0.0001 \
+#     --is_first_stage \
+#     --mixed_precision
+
+# Aug 14 3
+name=raft-20kaingdcoco-noc-240k8
 gpu=3
 
-python -u train.py --name ${name} --stage augmenteddiml \
+python -u train.py --name ${name} --stage augmentingdcoco \
     --validation kitti \
-    --gpus ${gpu} --num_steps 120000 --batch_size 8 --lr 0.00025 --val_freq 1000 \
+    --restore_ckpt checkpoints/49000_raft-20kaingdcoco-noc-240k8.pth \
+    --gpus ${gpu} --num_steps 240000 --batch_size 8 --lr 0.00025 --val_freq 1000 \
     --image_size 368 496 --wdecay 0.0001 \
     --is_first_stage \
-    --mixed_precision \
-    --add_classifier \
-    --classifier_checkpoint_timestamp 1677566045.275271 \
-    --classifier_checkpoint_train_acc 0.805 \
-    --classifier_checkpoint_test_acc 0.802 \
-    --classify_loss_weight_init 1 \
-    --classify_loss_weight_increase -0.00002 \
-    --add_forward_backward \
-    --forward_backward_loss_weight_init 1 \
-    --forward_backward_loss_weight_increase -0.00008 \
-    --max_forward_backward_loss_weight 1 \
-    --min_forward_backward_loss_weight 0
+    --mixed_precision

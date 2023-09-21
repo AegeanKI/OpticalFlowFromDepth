@@ -98,6 +98,26 @@ class FlowAugmentor:
             if img2_depth is not None:
                 img2_depth = cv2.resize(img2_depth, None, fx=scale_x, fy=scale_y, interpolation=cv2.INTER_LINEAR)
                 img2_depth = np.expand_dims(img2_depth, 2)
+        else:
+            scale_y = 1 if ht > self.crop_size[0] else (self.crop_size[0] + 8) / float(ht)
+            scale_x = 1 if wd > self.crop_size[1] else (self.crop_size[1] + 8) / float(wd)
+            if scale_x != 1 or scale_y != 1:
+                img1 = cv2.resize(img1, None, fx=scale_x, fy=scale_y, interpolation=cv2.INTER_LINEAR)
+                img2 = cv2.resize(img2, None, fx=scale_x, fy=scale_y, interpolation=cv2.INTER_LINEAR)
+                flow = cv2.resize(flow, None, fx=scale_x, fy=scale_y, interpolation=cv2.INTER_LINEAR)
+                flow = flow * [scale_x, scale_y]
+
+                if back_flow is not None:
+                    back_flow = cv2.resize(back_flow, None, fx=scale_x, fy=scale_y, interpolation=cv2.INTER_LINEAR)
+                    back_flow = back_flow * [scale_x, scale_y]
+
+                if img1_depth is not None:
+                    img1_depth = cv2.resize(img1_depth, None, fx=scale_x, fy=scale_y, interpolation=cv2.INTER_LINEAR)
+                    img1_depth = np.expand_dims(img1_depth, 2)
+
+                if img2_depth is not None:
+                    img2_depth = cv2.resize(img2_depth, None, fx=scale_x, fy=scale_y, interpolation=cv2.INTER_LINEAR)
+                    img2_depth = np.expand_dims(img2_depth, 2)
 
         if self.do_flip:
             if np.random.rand() < self.h_flip_prob: # h-flip

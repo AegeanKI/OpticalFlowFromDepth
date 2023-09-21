@@ -17,6 +17,9 @@ from utils.augmentor import FlowAugmentor, SparseFlowAugmentor
 from my_dataloader import AugmentedDIML, AugmentedFiltedReDWeb, FlowDIML, FlowFiltedReDWeb
 from my_dataloader import VEMDIML, VEMFiltedReDWeb, AugmentedVEMDIML
 
+from my_dataloader import AugmenteddCOCO, ExtendeddCOCO, dCOCO, dCOCO2
+from my_dataloader import AugmentingdCOCO
+
 class FlowDataset(data.Dataset):
     def __init__(self, aug_params=None, sparse=False):
         self.augmentor = None
@@ -273,6 +276,13 @@ class RAFTAugmentedDataset(FlowDataset):
         img1_depth = img1_depth.permute(1, 2, 0).numpy()
         img2_depth = img2_depth.permute(1, 2, 0).numpy()
 
+        # print(f"{img1.shape = }")
+        # print(f"{img2.shape = }")
+        # print(f"{flow.shape = }")
+        # print(f"{back_flow.shape = }")
+        # print(f"{img1_depth.shape = }")
+        # print(f"{img2_depth.shape = }")
+
         if self.augmentor is not None:
             if self.sparse:
                 img1, img2, flow, valid = self.augmentor(img1=img1, img2=img2, flow=flow, valid=valid)
@@ -349,6 +359,37 @@ class RAFTVEMFiltedReDWeb(RAFTAugmentedDataset):
         super(RAFTVEMFiltedReDWeb, self).__init__(aug_params)
 
         self.augmenteddataset = VEMFiltedReDWeb(normalize_dataset=False)
+
+class RAFTAugmenteddCOCO(RAFTAugmentedDataset):
+    def __init__(self, aug_params=None, split='training'):
+        super().__init__(aug_params)
+
+        self.augmenteddataset = AugmenteddCOCO(normalize_dataset=False)
+
+class RAFTAugmentingdCOCO(RAFTAugmentedDataset):
+    def __init__(self, aug_params=None, split='training', device=None):
+        super().__init__(aug_params)
+
+        self.augmenteddataset = AugmentingdCOCO(normalize_dataset=False, device=device)
+
+class RAFTExtendeddCOCO(RAFTAugmentedDataset):
+    def __init__(self, aug_params=None, split='training'):
+        super().__init__(aug_params)
+
+        self.augmenteddataset = ExtendeddCOCO(normalize_dataset=False)
+
+class RAFTdCOCO(RAFTAugmentedDataset):
+    def __init__(self, aug_params=None, split='training'):
+        super().__init__(aug_params)
+
+        self.augmenteddataset = dCOCO(normalize_dataset=False)
+
+class RAFTdCOCO2(RAFTAugmentedDataset):
+    def __init__(self, aug_params=None, split='training'):
+        super().__init__(aug_params)
+
+        self.augmenteddataset = dCOCO2(normalize_dataset=False)
+
 
 def fetch_dataloader(args, TRAIN_DS='C+T+K+S+H'):
     """ Create the data loader for the corresponding trainign set """
@@ -437,6 +478,31 @@ def fetch_dataloader(args, TRAIN_DS='C+T+K+S+H'):
         aug_params = {'crop_size': args.image_size, 'min_scale': -0.2, 'max_scale': 0.4, 'do_flip': False}
         train_dataset = FineTuneKITTI15(aug_params, split='training')
 
+    elif args.stage == "dcoco":
+        print(f"{args = }")
+        aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
+        train_dataset = RAFTdCOCO(aug_params, split='training')
+
+    elif args.stage == "dcoco2":
+        print(f"{args = }")
+        aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
+        train_dataset = RAFTdCOCO2(aug_params, split='training')
+
+    elif args.stage == "extendeddcoco":
+        print(f"{args = }")
+        aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
+        train_dataset = RAFTExtendeddCOCO(aug_params, split='training')
+
+    elif args.stage == "augmenteddcoco":
+        print(f"{args = }")
+        aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
+        train_dataset = RAFTAugmenteddCOCO(aug_params, split='training')
+
+    elif args.stage == "augmentingdcoco":
+        aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
+        device = torch.device(f"cuda")
+        train_dataset = RAFTAugmentingdCOCO(aug_params, split='training', device=device)
+        
 
     train_loader = data.DataLoader(train_dataset, batch_size=args.batch_size, 
         pin_memory=False, shuffle=True, num_workers=4, drop_last=True)

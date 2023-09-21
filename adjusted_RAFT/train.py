@@ -435,6 +435,7 @@ if __name__ == '__main__':
 
     # if args.add_forward_backward:
     #     args.lr = args.lr / 2
+    torch.multiprocessing.set_start_method('spawn')
 
     seed = 1234
 

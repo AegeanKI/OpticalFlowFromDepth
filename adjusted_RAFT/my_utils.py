@@ -1,5 +1,5 @@
-import geometry
-import flow_colors
+# import geometry
+# import flow_colors
 
 import cv2
 import numpy as np
@@ -7,7 +7,7 @@ import torch
 import random
 import math
 # import skimage
-from bilateral_filter import sparse_bilateral_filtering
+# from bilateral_filter import sparse_bilateral_filtering
 from threading import Thread
 import os
 # import pickle
