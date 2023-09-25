@@ -1,9 +1,11 @@
-# OpticalFromDepth
+# OpticalFlowFromDepth
 This repository contains the source code for our paper:
 
 Skin the sheep not only once:
 Reusing Various Depth Datasets to Drive the Learning of Optical Flow</br>
 Sheng-Chi Huang, Wei-Chen Chiu<br/>
+
+[Arxiv]()
 
 <img src="figure/teaser.png">
 
@@ -15,8 +17,8 @@ Optical flow estimation is crucial for various applications in vision and roboti
 
 Create a virtual environment for this project.
 ```Shell
-conda create --name OpticalFromDepth python=3.9
-conda activate OpticalFromDepth
+conda create --name OpticalFlowFromDepth python=3.9
+conda activate OpticalFlowFromDepth
 ```
 
 Clone this repo and install required packages, the code was developed with PyTorch 1.12.1 and Cuda 11.3.
