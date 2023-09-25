@@ -1,19 +1,5 @@
 *.swp
 *.pyc
-outputs
-outputsA
-outputsB
-outputsC
-outputsD
-test_output
-AugmentedDatasets
-tmp
-test.py
-
-my_cuda/build
-my_cuda/dist
-my_cuda/fw_cuda.egg-info
-my_cuda/core*
 
 datasets
 adjusted_RAFT/datasets

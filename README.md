@@ -100,24 +100,41 @@ We use the mixed dataset (ReDWeb+DIML) as esample.
 ```Shell
 cd adjusted_RAFT
 python -u train.py --name adjusted_raft --stage mixed --validation kitti --gpus 0 \
-                   --num_steps 120000 --batch_size 8 --lr 0.0025 --val_freq 10000 \
-                   --mixed_precision \
-                   --is_first_stage \
-                   --add_classifier \
-                   --classifier_checkpoint_timestamp 1677566045.275271 \
-                   --classifier_checkpoint_train_acc 0.805 \
-                   --classifier_checkpoint_test_acc 0.802 \
-                   --classify_loss_weight_init 1 \
-                   --classify_loss_weight_increase -0.00002 \
-                   --max_classify_loss_weight 1 \
-                   --min_classify_loss_weight 0
+   --num_steps 120000 --batch_size 8 --lr 0.0025 --val_freq 10000 \
+   --mixed_precision --is_first_stage \
+   --add_classifier \
+   --classifier_checkpoint_timestamp 1677566045.275271 \
+   --classifier_checkpoint_train_acc 0.805 \
+   --classifier_checkpoint_test_acc 0.802 \
+   --classify_loss_weight_init 1 \
+   --classify_loss_weight_increase -0.00002 \
+   --max_classify_loss_weight 1 \
+   --min_classify_loss_weight 0
 ```
 
 * Train on GMFlow model.
 ```Shell
+name=gmflow-ad+s-c1-2e5-1
+
+CHECKPOINT_DIR=checkpoints/adjusted_gmflow && \
+mkdir -p ${CHECKPOINT_DIR} && \
+CUDA_VISIBLE_DEVICES=2,3 \
+python -m torch.distributed.launch --nproc_per_node=0 --master_port=9988 main.py \
+    --launcher pytorch --checkpoint_dir ${CHECKPOINT_DIR} --stage mixed \
+    --batch_size 16 --val_dataset sintel kitti --lr 4e-4 --image_size 368 560 \
+    --padding_factor 16 --upsample_factor 8 --with_speed_metric --val_freq 1000 \
+    --save_ckpt_freq 10000 --num_steps 100000 \
+    --add_classifier \
+    --classifier_checkpoint_timestamp 1677566045.275271 \
+    --classifier_checkpoint_train_acc 0.805 \
+    --classifier_checkpoint_test_acc 0.802 \
+    --classify_loss_weight_init 1 \
+    --classify_loss_weight_increase -0.00002 \
+    --max_classify_loss_weight 1 \
+    --min_classify_loss_weight 0 \
+    2>&1 | tee -a ${checkpoint_dir}/train.log
 
 ```
-
 
 These parameters are:
 * `add_classifier`: enable classifier while training optical flow estimator
@@ -147,6 +164,7 @@ CUDA_VISIBLE_DEVICES=0 python main.py --eval --val_dataset things sintel \
 
 ## Acknowledgement
 
+* The preprocessing code of the virtual ego-motion is borrowed from [depthstillation](https://github.com/mattpoggi/depthstillation)
 * The training code and the testing code of the RAFT model is borrowed from [RAFT](https://github.com/princeton-vl/RAFT)
 * The training code and the testing code of the GMFlow model is borrowed from [GMFlow](https://github.com/haofeixu/gmflow)
 
