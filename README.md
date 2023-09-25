@@ -3,7 +3,7 @@ This repository contains the source code for our paper:
 
 Skin the sheep not only once:
 Reusing Various Depth Datasets to Drive the Learning of Optical Flow</br>
-Sheng-Chi Huang Wei-Chen Chiu<br/>
+Sheng-Chi Huang, Wei-Chen Chiu<br/>
 
 <img src="figure/teaser.png">
 
@@ -48,8 +48,7 @@ ln -s ../../dataloader.py my_dataloader.py
 We preprocess the `DIML` dataset as sample, you can also use `ReDWeb`.
 
 ```Shell
-python preprocess.py --dataset DIML \
-    --gpu 0 --split 1 --split_id 0
+python preprocess.py --dataset DIML --gpu 0 --split 1 --split_id 0
 ```
 
 These parameters are:
@@ -144,16 +143,14 @@ We use the validation set of KITTI-15 as esample. The ground truth of optical fl
     * TABLE I [R+D](https://drive.google.com/file/d/1vFfmqcX0cI6AvQo7MyyVSkr4Cp1KxE_A/view?usp=drive_link), [C->T->R+D](https://drive.google.com/file/d/1B-zu57m4x4YsgWbqQz3eJeHsTPuVvSgU/view?usp=drive_link)
     * TABLE III [full](https://drive.google.com/file/d/1cGBm-8qxfNBX5Tq6ClVFIKolk9juewJN/view?usp=drive_link), [noclassifier](https://drive.google.com/file/d/1vq3CqNJBHzmjhiRu0KePT2T2TQwnBzrB/view?usp=drive_link), [+virtual disparity](https://drive.google.com/file/d/1_nGbV2bW8jv5Q6CdZJigmVFsWQCReJ1F/view?usp=drive_link), [empty](https://drive.google.com/file/d/12uFboms8hfVRK_xC8j_SCV_BZpzkW2Mq/view?usp=drive_link)
 ```Shell
-python evaluate.py --model=models/raft-mixed-c.pth \
-                   --dataset=kitti --mixed_precision
+python evaluate.py --model=models/raft-mixed.pth --dataset=kitti --mixed_precision
 ```
 
 * Test on the GMFlow model.
     * TABLE II [R+D](https://drive.google.com/file/d/1rQ5K3lLsrvsbV1r_XBuLBG1iC-vTE2ti/view?usp=drive_link), [C->T->R+D](https://drive.google.com/file/d/1HxthTBkDeG_9lSKL9AXoSg04NcyvwBD0/view?usp=drive_link)
     * TABLE III [full](https://drive.google.com/file/d/1Vqf11XWAQeMLwESuEJ0DxxmtNLXwdu4H/view?usp=drive_link), [noclassifier](https://drive.google.com/file/d/1l7doJivOGna2RF9HwyIoe25FGcIevQgL/view?usp=drive_link), [+virtual disparity](https://drive.google.com/file/d/154sKtSwOxhR0XZb_wGhgxeeRo5qTm6yW/view?usp=drive_link), [empty]()
 ```Shell
-CUDA_VISIBLE_DEVICES=0 python main.py --eval --val_dataset things sintel \
-                                      --resume pretrained/gmflow_things-e9887eda.pth
+CUDA_VISIBLE_DEVICES=0 python main.py --eval --val_dataset kitti kitti12 sintel --resume pretrained/gmflow-CT-mixed.pth
 ```
 
 ## Acknowledgement
