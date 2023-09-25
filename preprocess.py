@@ -14,8 +14,7 @@ import matplotlib.pyplot as plt
 import utils
 import geometry
 from bilateral_filter import sparse_bilateral_filtering
-# from my_cuda.fw import FW
-from my_cuda_loffsi.fw import FW
+from alt_cuda.fw import FW
 from collections import defaultdict
 import random
 from argparse import ArgumentParser

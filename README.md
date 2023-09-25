@@ -27,9 +27,9 @@ pip install torch==1.12.1+cu113 torchvision==0.13.1+cu113 torchaudio==0.12.1 --e
 pip install -r requirement.txt
 ```
 
-Compile `my_cuda_loffsi` module, which is written in C, to handle warping operation.
+Compile `alt_cuda` module, which is written in C, to handle warping operation.
 ```Shell
-cd my_cuda_loffsi
+cd alt_cuda
 python setup.py install
 ```
 
@@ -38,10 +38,8 @@ python setup.py install
 We use `DIML` as sample, you can also use `filted_ReDWeb`.
 
 ```Shell
-python preprocess_continuous.py --dataset DIML \
-                                --gpu 0 \
-                                --split 1 \
-                                --split_id 0
+python preprocess.py --dataset DIML \
+    --gpu 0 --split 1 --split_id 0
 ```
 
 These parameters are:
