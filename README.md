@@ -135,8 +135,8 @@ python -m torch.distributed.launch --nproc_per_node=0 --master_port=9988 main.py
 
 These parameters are:
 * `add_classifier`: enable classifier while training optical flow estimator
-* `classifier_checkpoint_timestamp`: choose classifier directory (for classifier setting and checkpoints)
-* `classifier_checkpoint_train_acc` and `classifier_checkpoint_test_acc`: choose classifier checkpoint
+* `classifier_args`: if `add_classifier` flag is enable, use this flag to specify classifier args.
+* `classifier_checkpoint`: if `add_classifier` flag is enable, use this flag to specify classifier checkpoint.
 * `classify_loss_weight_init` and `classify_loss_weight_increase`: adjust the impact of classifier (linearly)
 * `max_classify_loss_weight` and `min_classify_loss_weight`: set the upper and the lower bound of the impact of the classifier
 
