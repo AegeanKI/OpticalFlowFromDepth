@@ -8,7 +8,8 @@ Sheng-Chi Huang Wei-Chen Chiu<br/>
 <img src="teaser.png">
 
 ## Introduction
-        Optical flow estimation is crucial for various applications in vision and robotics. As the difficulty of collecting ground truth optical flow in real-world scenarios, most of the existing methods of learning optical flow still adopt synthetic dataset for supervised training or utilize photometric consistency across temporally adjacent video frames to drive the unsupervised learning, where the former typically has issues of generalizability while the latter usually performs worse than the supervised ones. To tackle such challenges, we propose to leverage the geometric connection between optical flow estimation and stereo matching (based on the similarity upon finding pixel correspondences across images) to unify various real-world depth estimation datasets for generating supervised training data upon optical flow. Specifically, we turn the monocular depth datasets into stereo ones via synthesizing virtual disparity, thus leading to the flows along the horizontal direction; moreover, we introduce virtual camera motion into stereo data to produce additional flows along the vertical direction. Furthermore, we propose applying geometric augmentations on one image of an optical flow pair, encouraging the optical flow estimator to learn from more challenging cases. Lastly, as the optical flow maps under different geometric augmentations actually exhibit distinct characteristics, an auxiliary classifier which trains to identify the type of augmentation from the appearance of the flow map is utilized to further enhance the learning of the optical flow estimator. Our proposed method is general and is not tied to any particular flow estimator, where extensive experiments based on various datasets and optical flow estimation models verify its efficacy and superiority.
+
+Optical flow estimation is crucial for various applications in vision and robotics. As the difficulty of collecting ground truth optical flow in real-world scenarios, most of the existing methods of learning optical flow still adopt synthetic dataset for supervised training or utilize photometric consistency across temporally adjacent video frames to drive the unsupervised learning, where the former typically has issues of generalizability while the latter usually performs worse than the supervised ones. To tackle such challenges, we propose to leverage the geometric connection between optical flow estimation and stereo matching (based on the similarity upon finding pixel correspondences across images) to unify various real-world depth estimation datasets for generating supervised training data upon optical flow. Specifically, we turn the monocular depth datasets into stereo ones via synthesizing virtual disparity, thus leading to the flows along the horizontal direction; moreover, we introduce virtual camera motion into stereo data to produce additional flows along the vertical direction. Furthermore, we propose applying geometric augmentations on one image of an optical flow pair, encouraging the optical flow estimator to learn from more challenging cases. Lastly, as the optical flow maps under different geometric augmentations actually exhibit distinct characteristics, an auxiliary classifier which trains to identify the type of augmentation from the appearance of the flow map is utilized to further enhance the learning of the optical flow estimator. Our proposed method is general and is not tied to any particular flow estimator, where extensive experiments based on various datasets and optical flow estimation models verify its efficacy and superiority.
 
 ## Installation
 
@@ -33,6 +34,7 @@ python setup.py install
 ```
 
 ## Preprocessing
+
 We use `DIML` as sample, you can also use `filted_ReDWeb`.
 
 ```Shell
@@ -43,19 +45,22 @@ python preprocess_continuous.py --dataset DIML \
 ```
 
 These parameters are:
-- `dataset`: preprocess specific dataset
-- `gpu`: preprocess dataset on specific gpu
-- `split` and `split_id`: only preprocess part of dataset
-- `subdir`: set the output subdirectory
+* `dataset`: preprocess specific dataset
+* `gpu`: preprocess dataset on specific gpu
+* `split` and `split_id`: only preprocess part of dataset
+* `subdir`: set the output subdirectory
 
 ## Datasets
+To evaluate/train the RAFT/GMFlow models, you will need to download the required datasets.
 
-- [FlyingChairs](https://lmb.informatik.uni-freiburg.de/resources/datasets/FlyingChairs.en.html#flyingchairs)
-- [FlyingThings3D](https://lmb.informatik.uni-freiburg.de/resources/datasets/SceneFlowDatasets.en.html)
-- [Sintel](http://sintel.is.tue.mpg.de/)
-- [KITTI](http://www.cvlibs.net/datasets/kitti/eval_scene_flow.php?benchmark=flow)
-- [DIML](https://dimlrgbd.github.io/#main)
-- [ReDWeb](https://sites.google.com/site/redwebcvpr18/)
+* [FlyingChairs](https://lmb.informatik.uni-freiburg.de/resources/datasets/FlyingChairs.en.html#flyingchairs)
+* [FlyingThings3D](https://lmb.informatik.uni-freiburg.de/resources/datasets/SceneFlowDatasets.en.html)
+* [Sintel](http://sintel.is.tue.mpg.de/)
+* [KITTI](http://www.cvlibs.net/datasets/kitti/eval_scene_flow.php?benchmark=flow)
+* [DIML](https://dimlrgbd.github.io/#main)
+* [ReDWeb](https://sites.google.com/site/redwebcvpr18/)
+
+By default `dataset.py` in the RAFT model and the GMFlow model and `dataloader.py` will search for datasets in these locations. You can create symbolic links to whereever the datasets werer downloaded in the datasets folder. 
 
 ```Shell
 ├── datasets
@@ -83,9 +88,15 @@ These parameters are:
         ├── DIML
 ```
 
-## Training
-We use the RAFT model as sample.
+You can use the following command to create a soft link dataset/datasetA folder connect to /real/path/to/datasetA.
+```Shell
+ln -s dataset/datasetA /real/path/to/datasetA
+```
 
+## Training
+We use the mixed dataset (ReDWeb+DIML) as esample.
+
+* Train on the RAFT model.
 ```Shell
 cd adjusted_RAFT
 python -u train.py --name adjusted_raft --stage mixed --validation kitti --gpus 0 \
@@ -102,80 +113,48 @@ python -u train.py --name adjusted_raft --stage mixed --validation kitti --gpus 
                    --min_classify_loss_weight 0
 ```
 
+* Train on GMFlow model.
+```Shell
+
+```
+
+
 These parameters are:
-- `add_classifier`: enable classifier while training optical flow estimator
-- `classifier_checkpoint_timestamp`: choose classifier directory (for classifier setting and checkpoints)
-- `classifier_checkpoint_train_acc` and `classifier_checkpoint_test_acc`: choose classifier checkpoint
-- `classify_loss_weight_init` and `classify_loss_weight_increase`: adjust the impact of classifier (linearly)
-- `max_classify_loss_weight` and `min_classify_loss_weight`: set the upper and the lower bound of the impact of the classifier
+* `add_classifier`: enable classifier while training optical flow estimator
+* `classifier_checkpoint_timestamp`: choose classifier directory (for classifier setting and checkpoints)
+* `classifier_checkpoint_train_acc` and `classifier_checkpoint_test_acc`: choose classifier checkpoint
+* `classify_loss_weight_init` and `classify_loss_weight_increase`: adjust the impact of classifier (linearly)
+* `max_classify_loss_weight` and `min_classify_loss_weight`: set the upper and the lower bound of the impact of the classifier
 
-
-
-
-
-
-
-
-
-
-
-
-
-<!--
-```
-@article{,
-  title={Deep monocular depth estimation leveraging a large-scale outdoor stereo dataset},
-  author={Cho, Jaehoon and Min, Dongbo and Kim, Youngjung and Sohn, Kwanghoon},
-  journal={Expert Systems with Applications},
-  volume={178},
-  year={2021},
-}
-```
-
-
-
-## Demos
-Pretrained models can be downloaded by running
+## Testing
+We use the validation set of KITTI-15 as esample. The ground truth of optical flow includes occluded area.
+* You can download our pretrained models from [here](https://drive.google.com/drive/folders/1Iyx5YxuYjj1PSZxg70IintqCjGu9Y61l?usp=sharing)
+* Test on the RAFT model.
+    * TABLE I [R+D](https://drive.google.com/file/d/1vFfmqcX0cI6AvQo7MyyVSkr4Cp1KxE_A/view?usp=drive_link), [C->T->R+D](https://drive.google.com/file/d/1B-zu57m4x4YsgWbqQz3eJeHsTPuVvSgU/view?usp=drive_link)
+    * TABLE III [full](https://drive.google.com/file/d/1cGBm-8qxfNBX5Tq6ClVFIKolk9juewJN/view?usp=drive_link), [-classifier](https://drive.google.com/file/d/1vq3CqNJBHzmjhiRu0KePT2T2TQwnBzrB/view?usp=drive_link), [+virtual disparity](https://drive.google.com/file/d/1_nGbV2bW8jv5Q6CdZJigmVFsWQCReJ1F/view?usp=drive_link), [none](https://drive.google.com/file/d/1Ec9_oFHi2aq8x5KSXry2Jk9Lj3kD8TFe/view?usp=drive_link)
 ```Shell
-./download_models.sh
+python evaluate.py --model=models/raft-mixed-c.pth \
+                   --dataset=kitti \
+                   --mixed_precision
 ```
-or downloaded from [google drive](https://drive.google.com/drive/folders/1sWDsfuZ3Up38EUQt7-JDTT1HcGHuJgvT?usp=sharing)
 
-You can demo a trained model on a sequence of frames
+* Test on the GMFlow model.
+    * [R+D]()
 ```Shell
-python demo.py --model=models/raft-things.pth --path=demo-frames
+CUDA_VISIBLE_DEVICES=0 python main.py --eval --val_dataset things sintel \
+                                      --resume pretrained/gmflow_things-e9887eda.pth
 ```
 
-## Required Data
-To evaluate/train RAFT, you will need to download the required datasets. 
-* [HD1K](http://hci-benchmark.iwr.uni-heidelberg.de/) (optional)
+## Acknowledgement
+
+* The training code and the testing code of the RAFT model is borrowed from [RAFT](https://github.com/princeton-vl/RAFT)
+* The training code and the testing code of the GMFlow model is borrowed from [GMFlow](https://github.com/haofeixu/gmflow)
 
 
-By default `datasets.py` will search for the datasets in these locations. You can create symbolic links to wherever the datasets were downloaded in the `datasets` folder
 
 
-## Evaluation
-You can evaluate a trained model using `evaluate.py`
-```Shell
-python evaluate.py --model=models/raft-things.pth --dataset=sintel --mixed_precision
-```
 
-## Training
-We used the following training schedule in our paper (2 GPUs). Training logs will be written to the `runs` which can be visualized using tensorboard
-```Shell
-./train_standard.sh
-```
 
-If you have a RTX GPU, training can be accelerated using mixed precision. You can expect similiar results in this setting (1 GPU)
-```Shell
-./train_mixed.sh
-```
 
-## (Optional) Efficent Implementation
-You can optionally use our alternate (efficent) implementation by compiling the provided cuda extension
-```Shell
-cd alt_cuda_corr && python setup.py install && cd ..
-```
-and running `demo.py` and `evaluate.py` with the `--alternate_corr` flag Note, this implementation is somewhat slower than all-pairs, but uses significantly less GPU memory during the forward pass.
--->
+
 
