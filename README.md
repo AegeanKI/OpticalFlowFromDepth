@@ -5,7 +5,7 @@ Skin the sheep not only once:
 Reusing Various Depth Datasets to Drive the Learning of Optical Flow</br>
 Sheng-Chi Huang Wei-Chen Chiu<br/>
 
-<img src="teaser.png">
+<img src="figure/teaser.png">
 
 ## Introduction
 
@@ -32,10 +32,20 @@ Compile `alt_cuda` module, which is written in C, to handle warping operation.
 cd alt_cuda
 python setup.py install
 ```
+link the dataloader to allow the RAFT model and the GMFlow model use our dataloader and our classifier.
+```Shell
+cd adjusted_RAFT
+ln -s ../auxiliary_classifier auxiliary_classifier
+cd core
+ln -s ../../dataloader.py my_dataloader.py
+cd ../../adjusted_gmflow
+ln -s ../auxiliary_classifier auxiliary_classifier
+cd data
+ln -s ../../dataloader.py my_dataloader.py
+```
 
 ## Preprocessing
-
-We use `DIML` as sample, you can also use `filted_ReDWeb`.
+We preprocess the `DIML` dataset as sample, you can also use `ReDWeb`.
 
 ```Shell
 python preprocess.py --dataset DIML \
@@ -46,7 +56,6 @@ These parameters are:
 * `dataset`: preprocess specific dataset
 * `gpu`: preprocess dataset on specific gpu
 * `split` and `split_id`: only preprocess part of dataset
-* `subdir`: set the output subdirectory
 
 ## Datasets
 To evaluate/train the RAFT/GMFlow models, you will need to download the required datasets.
@@ -75,7 +84,7 @@ By default `dataset.py` in the RAFT model and the GMFlow model and `dataloader.p
         ├── frames_cleanpass
         ├── frames_finalpass
         ├── optical_flow
-    ├── ReDWeb
+    ├── ReDWeb_V1
         ├── Imgs
         ├── RDs
     ├── DIML
@@ -98,16 +107,11 @@ We use the mixed dataset (ReDWeb+DIML) as esample.
 ```Shell
 cd adjusted_RAFT
 python -u train.py --name adjusted_raft --stage mixed --validation kitti --gpus 0 \
-   --num_steps 120000 --batch_size 8 --lr 0.0025 --val_freq 10000 \
-   --mixed_precision --is_first_stage \
-   --add_classifier \
-   --classifier_checkpoint_timestamp 1677566045.275271 \
-   --classifier_checkpoint_train_acc 0.805 \
-   --classifier_checkpoint_test_acc 0.802 \
-   --classify_loss_weight_init 1 \
-   --classify_loss_weight_increase -0.00002 \
-   --max_classify_loss_weight 1 \
-   --min_classify_loss_weight 0
+    --num_steps 120000 --batch_size 8 --lr 0.0025 --val_freq 10000 \
+    --mixed_precision --is_first_stage \
+    --add_classifier \
+    --classifier_args auxiliary_classifier/args.txt \
+    --classifier_checkpoint auxiliary_classifier/checkpoint.pth \
 ```
 
 * Train on GMFlow model.
@@ -123,13 +127,8 @@ python -m torch.distributed.launch --nproc_per_node=0 --master_port=9988 main.py
     --padding_factor 16 --upsample_factor 8 --with_speed_metric --val_freq 1000 \
     --save_ckpt_freq 10000 --num_steps 100000 \
     --add_classifier \
-    --classifier_checkpoint_timestamp 1677566045.275271 \
-    --classifier_checkpoint_train_acc 0.805 \
-    --classifier_checkpoint_test_acc 0.802 \
-    --classify_loss_weight_init 1 \
-    --classify_loss_weight_increase -0.00002 \
-    --max_classify_loss_weight 1 \
-    --min_classify_loss_weight 0 \
+    --classifier_args auxiliary_classifier/args.txt \
+    --classifier_checkpoint auxiliary_classifier/checkpoint.pth \
     2>&1 | tee -a ${checkpoint_dir}/train.log
 
 ```
@@ -149,8 +148,7 @@ We use the validation set of KITTI-15 as esample. The ground truth of optical fl
     * TABLE III [full](https://drive.google.com/file/d/1cGBm-8qxfNBX5Tq6ClVFIKolk9juewJN/view?usp=drive_link), [-classifier](https://drive.google.com/file/d/1vq3CqNJBHzmjhiRu0KePT2T2TQwnBzrB/view?usp=drive_link), [+virtual disparity](https://drive.google.com/file/d/1_nGbV2bW8jv5Q6CdZJigmVFsWQCReJ1F/view?usp=drive_link), [none](https://drive.google.com/file/d/1Ec9_oFHi2aq8x5KSXry2Jk9Lj3kD8TFe/view?usp=drive_link)
 ```Shell
 python evaluate.py --model=models/raft-mixed-c.pth \
-                   --dataset=kitti \
-                   --mixed_precision
+                   --dataset=kitti --mixed_precision
 ```
 
 * Test on the GMFlow model.

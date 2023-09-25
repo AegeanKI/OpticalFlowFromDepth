@@ -21,7 +21,7 @@ import datasets
 
 from torch.utils.tensorboard import SummaryWriter
 
-from my_classifier import RAFTClassifier, Classifier
+from auxiliary_classifier.classifier import Classifier
 from torch.nn import CrossEntropyLoss
 import json
 
@@ -151,46 +151,22 @@ def train(args):
 
     if args.stage != 'chairs' and not args.is_first_stage:
         model.module.freeze_bn()
-    # if args.stage != 'chairs' and args.stage != 'augmentedredweb' and args.stage != 'augmenteddiml':
-    #     model.module.freeze_bn()
 
-    # =====
     if args.add_classifier:
-        classifier_checkpoints_dir = f"outputs/models/{args.classifier_checkpoint_timestamp}"
-        train_acc = args.classifier_checkpoint_train_acc
-        test_acc = args.classifier_checkpoint_test_acc
-        classifier_checkpoints_name = f"{train_acc=}_{test_acc=}.pt"
-        with open(f"{classifier_checkpoints_dir}/args.txt") as f:
+        with open(f"{args.classifier_args}") as f:
             classifier_args = json.load(f)
-        print(f"{classifier_args = }")
-        if not classifier_args["use_depth_in_classifier"]:
-            classifier = Classifier(device=args.gpus[0],
-                                    output_dim=classifier_args["output_dim"],
-                                    dropout=classifier_args["dropout"],
-                                    use_small=classifier_args["use_small"],
-                                    use_dropout_in_encoder=classifier_args["use_dropout_in_encoder"],
-                                    use_dropout_in_classify=classifier_args["use_dropout_in_classify"],
-                                    use_average_pooling=classifier_args["use_average_pooling"])
-        else:
-            classifier = RAFTClassifier(device=args.gpus[0],
-                                        output_dim=classifier_args["output_dim"],
-                                        dropout=classifier_args["dropout"],
-                                        use_small=classifier_args["use_small"],
-                                        use_dropout_in_encoder=classifier_args["use_dropout_in_encoder"],
-                                        use_dropout_in_classify=classifier_args["use_dropout_in_classify"],
-                                        use_average_pooling=classifier_args["use_average_pooling"])
-        classifier.load_state_dict(torch.load(f"{classifier_checkpoints_dir}/{classifier_checkpoints_name}",
-                                              map_location=f"cuda:{args.gpus[0]}"))
+        classifier = Classifier(device=args.gpus[0],
+                                output_dim=classifier_args["output_dim"],
+                                dropout=classifier_args["dropout"],
+                                use_small=classifier_args["use_small"],
+                                use_dropout_in_encoder=classifier_args["use_dropout_in_encoder"],
+                                use_dropout_in_classify=classifier_args["use_dropout_in_classify"],
+                                use_average_pooling=classifier_args["use_average_pooling"])
+        classifier.load_state_dict(torch.load(f"{args.classifier_checkpoint}", map_location=f"cuda:{args.gpus[0]}"))
         classifier.to(args.gpus[0])
         classifier.eval()
         classify_loss_func = CrossEntropyLoss()
-
         classify_loss_weight = args.classify_loss_weight_init
-
-        h, w = args.original_image_size
-    # =====
-    if args.add_forward_backward:
-        forward_backward_loss_weight = args.forward_backward_loss_weight_init
 
     train_loader = datasets.fetch_dataloader(args)
     optimizer, scheduler = fetch_optimizer(args, model)
@@ -208,10 +184,6 @@ def train(args):
         for i_batch, data_blob in enumerate(train_loader):
             optimizer.zero_grad()
             image1, image2, flow, back_flow, image1_depth, image2_depth, valid, back_valid, label = [x.cuda() for x in data_blob]
-            # print(f"{image1.shape = }")
-            # print(f"{flow.shape = }")
-            # print(f"{valid.shape = }")
-            # print(f"{image1_depth.shape = }")
 
             if args.add_noise:
                 stdv = np.random.uniform(0.0, 5.0)
@@ -221,84 +193,14 @@ def train(args):
             flow_predictions = model(image1, image2, iters=args.iters)
             loss, metrics = sequence_loss(flow_predictions, flow, valid, args.gamma)
 
-            print(f"{total_steps}: loss = {loss.item():.10f}", end='')
-            # =====
             if args.add_classifier:
-                if ("not_normalize_dataset" in classifier_args) and (not classifier_args["not_normalize_dataset"]):
-                    normalized_predicted_flow = flow_predictions[-1]
-                    normalized_predicted_flow[:, 0] = normalized_predicted_flow[:, 0] / h
-                    normalized_predicted_flow[:, 1] = normalized_predicted_flow[:, 1] / w
-                    normalized_predicted_flow = normalized_predicted_flow.float()
-                    normalized_depth = (image1_depth / 100).float()
-                    normalized_predicted_flow_depth = torch.cat((normalized_predicted_flow, normalized_depth), axis=1)
-
-                    if not classifier_args["use_depth_in_classifier"]:
-                        predict1 = classifier(normalized_predicted_flow)
-                    else:
-                        predict1 = classifier(normalized_predicted_flow_depth)
-                else:
-                    predicted_flow = flow_predictions[-1].float()
-                    depth = image1_depth.float()
-                    predicted_flow_depth = torch.cat((predicted_flow, depth), axis=1)
-
-                    if not classifier_args["use_depth_in_classifier"]:
-                        predict1 = classifier(predicted_flow)
-                    else:
-                        predict1 = classifier(predicted_flow_depth)
-
-
+                predicted_flow = flow_predictions[-1].float()
+                predict1 = classifier(predicted_flow)
                 classify_loss = classify_loss_func(predict1, label)
                 loss = loss + classify_loss * classify_loss_weight
-            # ====
-
-            if args.add_forward_backward:
-                if args.use_ground_truth_backward:
-                    predicted_back_flow = back_flow.detach()
-                else:
-                    with torch.no_grad():
-                        back_flow_predictions = model(image2.detach(), image1.detach(), iters=args.iters)
-                    predicted_back_flow = back_flow_predictions[-1].detach()
-                predicted_flow = flow_predictions[-1].detach()
-                # predicted_back_flow = back_flow.detach().cuda() # gt
-                # predicted_flow = flow.detach().cuda()           # gt
-                B, C, H, W = predicted_back_flow.size()
-                # mesh grid 
-                xx = torch.arange(0, W).view(1, -1).repeat(H, 1)
-                yy = torch.arange(0, H).view(-1, 1).repeat(1, W)
-                xx = xx.view(1, 1, H, W).repeat(B, 1, 1, 1)
-                yy = yy.view(1, 1, H, W).repeat(B, 1, 1, 1)
-                grid = torch.cat((xx, yy), 1).float()
-
-                grid = grid.cuda() + predicted_flow
-
-                grid[:, 0, :, :] = 2.0 * grid[:, 0, :, :].clone() / max(W - 1, 1) - 1.0 
-                grid[:, 1, :, :] = 2.0 * grid[:, 1, :, :].clone() / max(H - 1, 1) - 1.0
-
-                grid = grid.permute(0, 2, 3, 1)
-                warped_predicted_back_flow = F.grid_sample(predicted_back_flow, grid, padding_mode='border')
-                backward_valid_mask = back_valid.detach().view(B, 1, H, W).repeat(1, 2, 1, 1)
-                forward_valid_mask = valid.detach().view(B, 1, H, W).repeat(1, 2, 1, 1)
-                backward_valid_mask = F.grid_sample(backward_valid_mask, grid, padding_mode='zeros')
-
-                backward_valid_mask[backward_valid_mask < 0.9999] = 0
-                backward_valid_mask[backward_valid_mask > 0] = 1
-
-                full_mask = forward_valid_mask * backward_valid_mask 
-                forward_backward_loss = torch.mean(torch.abs((predicted_flow + warped_predicted_back_flow) * full_mask))
-                loss = loss + forward_backward_loss * forward_backward_loss_weight
-                # loss = loss + forward_backward_loss.detach()
-                
-            if args.add_classifier:
-                print(f" + {classify_loss.item():.10f} * {classify_loss_weight:.3f}", end='')
                 classify_loss_weight = classify_loss_weight + args.classify_loss_weight_increase
                 classify_loss_weight = max(args.min_classify_loss_weight, classify_loss_weight)
                 classify_loss_weight = min(args.max_classify_loss_weight, classify_loss_weight)
-            if args.add_forward_backward:
-                print(f" + {forward_backward_loss.item():.10f} * {forward_backward_loss_weight:.3f}", end='')
-                forward_backward_loss_weight = forward_backward_loss_weight + args.forward_backward_loss_weight_increase
-                forward_backward_loss_weight = max(args.min_forward_backward_loss_weight, forward_backward_loss_weight)
-                forward_backward_loss_weight = min(args.max_forward_backward_loss_weight, forward_backward_loss_weight)
-            print(f" = {loss.item():.10f}")
 
             scaler.scale(loss).backward()
             scaler.unscale_(optimizer)                
@@ -349,38 +251,18 @@ def train(args):
             del metrics
 
             if args.add_classifier:
-                if ("not_normalize_dataset" in classifier_args) and (not classifier_args["not_normalize_dataset"]):
-                    del normalized_predicted_flow
-                    del normalized_depth
-                    del normalized_predicted_flow_depth
-                else:
-                    del predicted_flow
-                    del depth
-                    del predicted_flow_depth
+                del predicted_flow
+                del depth
+                del predicted_flow_depth
                 del predict1
                 del classify_loss
                 
                 classify_loss_weight = classify_loss_weight + args.classify_loss_weight_increase
                 classify_loss_weight = max(args.min_classify_loss_weight, classify_loss_weight)
                 classify_loss_weight = min(args.max_classify_loss_weight, classify_loss_weight)
-            # ====
 
-            if args.add_forward_backward:
-                model.eval()
-                if not args.use_ground_truth_backward:
-                    del back_flow_predictions
-                del predicted_back_flow
-                del B, C, H, W
-                del xx, yy
-                del grid
-                del warped_predicted_back_flow
-                del forward_valid_mask, backward_valid_mask
-                del full_mask
-                del forward_backward_loss
             del loss
             del i_batch, data_blob
-        #     break
-        # break
 
     logger.close()
     PATH = 'checkpoints/%s.pth' % args.name
@@ -415,26 +297,18 @@ if __name__ == '__main__':
 
     parser.add_argument('--val_freq', type=int, default=5000)
     parser.add_argument('--add_classifier', action='store_true')
-    parser.add_argument('--classifier_checkpoint_timestamp')
-    parser.add_argument('--classifier_checkpoint_train_acc', type=float)
-    parser.add_argument('--classifier_checkpoint_test_acc', type=float)
+    parser.add_argument('--classifier_args')
+    parser.add_argument('--classifier_checkpoint')
     parser.add_argument('--classify_loss_weight_init', type=float, default=1)
     parser.add_argument('--classify_loss_weight_increase', type=float, default=-0.00002)
     parser.add_argument('--max_classify_loss_weight', type=float, default=1)
     parser.add_argument('--min_classify_loss_weight', type=float, default=0)
-    parser.add_argument('--add_forward_backward', action='store_true')
-    parser.add_argument('--forward_backward_loss_weight_init', type=float, default=1)
-    parser.add_argument('--forward_backward_loss_weight_increase', type=float, default=-0.00002)
-    parser.add_argument('--max_forward_backward_loss_weight', type=float, default=1)
-    parser.add_argument('--min_forward_backward_loss_weight', type=float, default=0)
     parser.add_argument('--early_stop', default=1e9, type=int)
     parser.add_argument('--is_first_stage', action='store_true')
     parser.add_argument('--use_ground_truth_backward', action='store_true')
 
     args = parser.parse_args()
 
-    # if args.add_forward_backward:
-    #     args.lr = args.lr / 2
     torch.multiprocessing.set_start_method('spawn')
 
     seed = 1234

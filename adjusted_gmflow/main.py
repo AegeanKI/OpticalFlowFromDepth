@@ -17,7 +17,7 @@ from utils.logger import Logger
 from utils import misc
 from utils.dist_utils import get_dist_info, init_dist, setup_for_distributed
 
-from my_classifier import RAFTClassifier, Classifier
+from auxiliary_classifier import Classifier
 from torch.nn import CrossEntropyLoss
 import json
 
@@ -120,13 +120,12 @@ def get_args_parser():
                         help='measure the inference time on sintel')
 
     parser.add_argument('--add_classifier', action='store_true')
-    parser.add_argument('--classifier_checkpoint_timestamp')
-    parser.add_argument('--classifier_checkpoint_train_acc', type=float)
-    parser.add_argument('--classifier_checkpoint_test_acc', type=float)
-    parser.add_argument('--classify_loss_weight_init', type=float)
-    parser.add_argument('--classify_loss_weight_increase', type=float)
-    parser.add_argument('--max_classify_loss_weight', type=float)
-    parser.add_argument('--min_classify_loss_weight', type=float)
+    parser.add_argument('--classifier_args')
+    parser.add_argument('--classifier_checkpoint', type=float)
+    parser.add_argument('--classify_loss_weight_init', type=float, default=1)
+    parser.add_argument('--classify_loss_weight_increase', type=float, default=-0.00002)
+    parser.add_argument('--max_classify_loss_weight', type=float, default=1)
+    parser.add_argument('--min_classify_loss_weight', type=float, default=0)
 
     return parser
 
@@ -187,41 +186,21 @@ def main(args):
                    num_transformer_layers=args.num_transformer_layers,
                    ).to(device)
 
-    # =========================
     if args.add_classifier:
-        classifier_checkpoints_dir = f"outputs/models/{args.classifier_checkpoint_timestamp}"
-        train_acc = args.classifier_checkpoint_train_acc
-        test_acc = args.classifier_checkpoint_test_acc
-        classifier_checkpoint_name = f"{train_acc=}_{test_acc=}.pt"
-        with open(f"{classifier_checkpoints_dir}/args.txt") as f:
+        with open(f"{args.classifier_args}") as f:
             classifier_args = json.load(f)
-        print(f"{classifier_args = }")
-        if ("use_depth_in_classifier" in classifier_args) and (not classifier_args["use_depth_in_classifier"]):
-            classifier = Classifier(device=device,
-                                    output_dim=classifier_args["output_dim"],
-                                    dropout=classifier_args["dropout"],
-                                    use_small=classifier_args["use_small"],
-                                    use_dropout_in_encoder=classifier_args["use_dropout_in_encoder"],
-                                    use_dropout_in_classify=classifier_args["use_dropout_in_classify"],
-                                    use_average_pooling=classifier_args["use_average_pooling"])
-        else:
-            classifier = RAFTClassifier(device=device,
-                                        output_dim=classifier_args["output_dim"],
-                                        dropout=classifier_args["dropout"],
-                                        use_small=classifier_args["use_small"],
-                                        use_dropout_in_encoder=classifier_args["use_dropout_in_encoder"],
-                                        use_dropout_in_classify=classifier_args["use_dropout_in_classify"],
-                                        use_average_pooling=classifier_args["use_average_pooling"])
-        classifier.load_state_dict(torch.load(f"{classifier_checkpoints_dir}/{classifier_checkpoint_name}",
-                                              map_location=device))
+        classifier = Classifier(device=device,
+                                output_dim=classifier_args["output_dim"],
+                                dropout=classifier_args["dropout"],
+                                use_small=classifier_args["use_small"],
+                                use_dropout_in_encoder=classifier_args["use_dropout_in_encoder"],
+                                use_dropout_in_classify=classifier_args["use_dropout_in_classify"],
+                                use_average_pooling=classifier_args["use_average_pooling"])
+        classifier.load_state_dict(torch.load(f"{args.classifier_checkpoint}", map_location=device))
         classifier.to(device)
         classifier.eval()
         classify_loss_func = CrossEntropyLoss()
-
         classify_loss_weight = args.classify_loss_weight_init
-
-        h, w = args.original_image_size
-    # =========================
 
     if not args.eval and not args.submission and not args.inference_dir:
         print('Model definition:')
@@ -469,7 +448,6 @@ def main(args):
             train_sampler.set_epoch(epoch)
 
         for i, sample in enumerate(train_loader):
-            # img1, img2, flow_gt, valid = [x.to(device) for x in sample]
             img1, img2, flow_gt, img1_depth, valid, label = [x.to(device) for x in sample]
 
             results_dict = model(img1, img2,
@@ -484,31 +462,14 @@ def main(args):
                                            gamma=args.gamma,
                                            max_flow=args.max_flow,
                                            )
-            # =============
             if args.add_classifier:
-                normalized_flow = flow_preds[-1]
-                normalized_flow[:, 0] = normalized_flow[:, 0] / h
-                normalized_flow[:, 1] = normalized_flow[:, 1] / w
-                normalized_flow = normalized_flow.float()
-                normalized_depth = (img1_depth / 100).float()
-                normalized_flow_depth = torch.cat((normalized_flow, normalized_depth), axis=1)
-
-                if not classifier_args["use_depth_in_classifier"]:
-                    predict1 = classifier(normalized_flow)
-                else:
-                    predict1 = classifier(normalized_flow_depth)
-
+                predicted_flow = flow_preds[-1]
+                predict1 = classifier(predicted_flow)
                 classify_loss = classify_loss_func(predict1, label)
-                print(f"{total_steps}: loss = flow_loss + classify_loss * {classify_loss_weight:.3f}", end='')
-                print(f" = {loss.item()} + {classify_loss.item()} * {classify_loss_weight:.3f}")
                 loss = loss + classify_loss * classify_loss_weight
-
                 classify_loss_weight = classify_loss_weight + args.classify_loss_weight_increase
                 classify_loss_weight = max(args.min_classify_loss_weight, classify_loss_weight)
                 classify_loss_weight = min(args.max_classify_loss_weight, classify_loss_weight)
-            else:
-                print(f"{total_steps}: loss = flow_loss = {loss.item()}")
-            # =============
 
             if isinstance(loss, float):
                 continue

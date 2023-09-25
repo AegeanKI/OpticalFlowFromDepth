@@ -13,12 +13,7 @@ import os.path as osp
 
 from utils import frame_utils
 from utils.augmentor import FlowAugmentor, SparseFlowAugmentor
-# from my_dataloader import AugmentedReDWeb, AugmentedDIML, TestAugmentedReDWeb, FlowDIML, TestFlowReDWeb
-from my_dataloader import AugmentedDIML, AugmentedFiltedReDWeb, FlowDIML, FlowFiltedReDWeb
-from my_dataloader import VEMDIML, VEMFiltedReDWeb, AugmentedVEMDIML
-
-from my_dataloader import AugmenteddCOCO, ExtendeddCOCO, dCOCO, dCOCO2
-from my_dataloader import AugmentingdCOCO
+from my_dataloader import AugmentedDIML, AugmentedReDWeb
 
 class FlowDataset(data.Dataset):
     def __init__(self, aug_params=None, sparse=False):
@@ -77,8 +72,6 @@ class FlowDataset(data.Dataset):
             img1 = img1[..., :3]
             img2 = img2[..., :3]
 
-        # print(f"{img1.shape = }")
-        # print(f"{flow.shape = }")
         if self.augmentor is not None:
             if self.sparse:
                 img1, img2, flow, valid = self.augmentor(img1=img1, img2=img2, flow=flow, valid=valid)
@@ -88,9 +81,6 @@ class FlowDataset(data.Dataset):
         img1 = torch.from_numpy(img1).permute(2, 0, 1).float()
         img2 = torch.from_numpy(img2).permute(2, 0, 1).float()
         flow = torch.from_numpy(flow).permute(2, 0, 1).float()
-
-        # print(f"{img1.shape = }")
-        # print(f"{flow.shape = }")
 
         if valid is not None:
             valid = torch.from_numpy(valid)
@@ -258,7 +248,7 @@ class HD1K(FlowDataset):
 
 class RAFTAugmentedDataset(FlowDataset):
     def __init__(self, aug_params=None, split='training'):
-        super(RAFTAugmentedDataset, self).__init__(aug_params)
+        super().__init__(aug_params)
 
         self.augmenteddataset = None
 
@@ -275,13 +265,6 @@ class RAFTAugmentedDataset(FlowDataset):
         back_flow = back_flow.permute(1, 2, 0).numpy()
         img1_depth = img1_depth.permute(1, 2, 0).numpy()
         img2_depth = img2_depth.permute(1, 2, 0).numpy()
-
-        # print(f"{img1.shape = }")
-        # print(f"{img2.shape = }")
-        # print(f"{flow.shape = }")
-        # print(f"{back_flow.shape = }")
-        # print(f"{img1_depth.shape = }")
-        # print(f"{img2_depth.shape = }")
 
         if self.augmentor is not None:
             if self.sparse:
@@ -308,96 +291,23 @@ class RAFTAugmentedDataset(FlowDataset):
 
         return img1, img2, flow, back_flow, img1_depth, img2_depth, valid.float(), back_valid.float(), label
 
-
-# class RAFTAugmentedReDWeb(RAFTAugmentedDataset):
-#     def __init__(self, aug_params=None, split='training'):
-#         super(RAFTAugmentedReDWeb, self).__init__(aug_params)
-#         # if aug_params:
-#         #     h, w = aug_params['crop_size']
-#         #     self.augmenteddataset = AugmentedReDWeb(normalize_dataset=False, size=(h + 1, w + 1))
-#         # else:
-#         #     self.augmenteddataset = AugmentedReDWeb(normalize_dataset=False)
-
-class RAFTAugmentedFiltedReDWeb(RAFTAugmentedDataset):
+class RAFTAugmentedReDWeb(RAFTAugmentedDataset):
     def __init__(self, aug_params=None, split='training'):
-        super(RAFTAugmentedFiltedReDWeb, self).__init__(aug_params)
+        super().__init__(aug_params)
         
-        self.augmenteddataset = AugmentedFiltedReDWeb(normalize_dataset=False)
+        self.augmenteddataset = AugmentedReDWeb(normalize_dataset=False)
 
 class RAFTAugmentedDIML(RAFTAugmentedDataset):
     def __init__(self, aug_params=None, split='training'):
-        super(RAFTAugmentedDIML, self).__init__(aug_params)
+        super().__init__(aug_params)
         
         self.augmenteddataset = AugmentedDIML(normalize_dataset=False)
-
-class RAFTFlowDIML(RAFTAugmentedDataset):
-    def __init__(self, aug_params=None, split='training'):
-        super(RAFTFlowDIML, self).__init__(aug_params)
-        
-        self.augmenteddataset = FlowDIML(normalize_dataset=False)
-
-class RAFTVEMDIML(RAFTAugmentedDataset):
-    def __init__(self, aug_params=None, split='training'):
-        super(RAFTVEMDIML, self).__init__(aug_params)
- 
-        self.augmenteddataset = VEMDIML(normalize_dataset=False)
-
-class RAFTAugmentedVEMDIML(RAFTAugmentedDataset):
-    def __init__(self, aug_params=None, split='training'):
-        super(RAFTAugmentedVEMDIML, self).__init__(aug_params)
- 
-        self.augmenteddataset = AugmentedVEMDIML(normalize_dataset=False)
-
-class RAFTFlowFiltedReDWeb(RAFTAugmentedDataset):
-    def __init__(self, aug_params=None, split='training'):
-        super(RAFTFlowFiltedReDWeb, self).__init__(aug_params)
-        
-        self.augmenteddataset = FlowFiltedReDWeb(normalize_dataset=False)
-
-class RAFTVEMFiltedReDWeb(RAFTAugmentedDataset):
-    def __init__(self, aug_params=None, split='training'):
-        super(RAFTVEMFiltedReDWeb, self).__init__(aug_params)
-
-        self.augmenteddataset = VEMFiltedReDWeb(normalize_dataset=False)
-
-class RAFTAugmenteddCOCO(RAFTAugmentedDataset):
-    def __init__(self, aug_params=None, split='training'):
-        super().__init__(aug_params)
-
-        self.augmenteddataset = AugmenteddCOCO(normalize_dataset=False)
-
-class RAFTAugmentingdCOCO(RAFTAugmentedDataset):
-    def __init__(self, aug_params=None, split='training', device=None):
-        super().__init__(aug_params)
-
-        self.augmenteddataset = AugmentingdCOCO(normalize_dataset=False, device=device)
-
-class RAFTExtendeddCOCO(RAFTAugmentedDataset):
-    def __init__(self, aug_params=None, split='training'):
-        super().__init__(aug_params)
-
-        self.augmenteddataset = ExtendeddCOCO(normalize_dataset=False)
-
-class RAFTdCOCO(RAFTAugmentedDataset):
-    def __init__(self, aug_params=None, split='training'):
-        super().__init__(aug_params)
-
-        self.augmenteddataset = dCOCO(normalize_dataset=False)
-
-class RAFTdCOCO2(RAFTAugmentedDataset):
-    def __init__(self, aug_params=None, split='training'):
-        super().__init__(aug_params)
-
-        self.augmenteddataset = dCOCO2(normalize_dataset=False)
-
 
 def fetch_dataloader(args, TRAIN_DS='C+T+K+S+H'):
     """ Create the data loader for the corresponding trainign set """
 
     if args.stage == 'chairs':
         aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
-        # aug_params = {'crop_size': args.image_size, 'min_scale': -0.4, 'max_scale': 0.8, 'do_flip': True} # things
-        # aug_params = {'crop_size': args.image_size, 'min_scale': -0.2, 'max_scale': 0.4, 'do_flip': True} # kitti
         train_dataset = FlyingChairs(aug_params, split='training')
 
     elif args.stage == 'things':
@@ -424,85 +334,22 @@ def fetch_dataloader(args, TRAIN_DS='C+T+K+S+H'):
         aug_params = {'crop_size': args.image_size, 'min_scale': -0.2, 'max_scale': 0.4, 'do_flip': False}
         train_dataset = KITTI(aug_params, split='training')
 
-    # elif args.stage == "augmentedredweb":
-    #     print(f"{args = }")
-    #     aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
-    #     train_dataset = RAFTAugmentedReDWeb(aug_params, split='training')
-
     elif args.stage == "augmenteddiml":
         print(f"{args = }")
         aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
-        # aug_params = {'crop_size': args.image_size, 'min_scale': -0.4, 'max_scale': 0.8, 'do_flip': True} # things
-        # aug_params = {'crop_size': args.image_size, 'min_scale': -0.2, 'max_scale': 0.4, 'do_flip': True} # kitti
         train_dataset = RAFTAugmentedDIML(aug_params, split='training')
 
-    elif args.stage == "augmentedfiltedredweb":
+    elif args.stage == "augmentedredweb":
         print(f"{args = }")
         aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
-        train_dataset = RAFTAugmentedFiltedReDWeb(aug_params, split='training')
-
-    elif args.stage == "flowdiml":
-        print(f"{args = }")
-        aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
-        train_dataset = RAFTFlowDIML(aug_params, split='training')
-
-    elif args.stage == "flowfiltedredweb":
-        print(f"{args = }")
-        aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
-        train_dataset = RAFTFlowFiltedReDWeb(aug_params, split='training')
-
-    elif args.stage == "vemdiml":
-        print(f"{args = }")
-        aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
-        train_dataset = RAFTVEMDIML(aug_params, split='training')
-
-    elif args.stage == "vemfiltedredweb":
-        print(f"{args = }")
-        aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
-        train_dataset = RAFTVEMFiltedReDWeb(aug_params, split='training')
+        train_dataset = RAFTAugmentedReDWeb(aug_params, split='training')
 
     elif args.stage == "mixed":
         print(f"{args = }")
-        # aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
         aug_params = {'crop_size': args.image_size, 'min_scale': -0.2, 'max_scale': 0.4, 'do_flip': False}
-        ar = RAFTAugmentedFiltedReDWeb(aug_params, split='training')
+        ar = RAFTAugmentedReDWeb(aug_params, split='training')
         ad = RAFTAugmentedDIML(aug_params, split='training')
         train_dataset = ar + ad
-
-    elif args.stage == "augmentedvemdiml":
-        print(f"{args = }")
-        aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
-        train_dataset = RAFTAugmentedVEMDIML(aug_params, split='training')
-
-    elif args.stage == "finetunekitti":
-        aug_params = {'crop_size': args.image_size, 'min_scale': -0.2, 'max_scale': 0.4, 'do_flip': False}
-        train_dataset = FineTuneKITTI15(aug_params, split='training')
-
-    elif args.stage == "dcoco":
-        print(f"{args = }")
-        aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
-        train_dataset = RAFTdCOCO(aug_params, split='training')
-
-    elif args.stage == "dcoco2":
-        print(f"{args = }")
-        aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
-        train_dataset = RAFTdCOCO2(aug_params, split='training')
-
-    elif args.stage == "extendeddcoco":
-        print(f"{args = }")
-        aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
-        train_dataset = RAFTExtendeddCOCO(aug_params, split='training')
-
-    elif args.stage == "augmenteddcoco":
-        print(f"{args = }")
-        aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
-        train_dataset = RAFTAugmenteddCOCO(aug_params, split='training')
-
-    elif args.stage == "augmentingdcoco":
-        aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
-        device = torch.device(f"cuda")
-        train_dataset = RAFTAugmentingdCOCO(aug_params, split='training', device=device)
-        
 
     train_loader = data.DataLoader(train_dataset, batch_size=args.batch_size, 
         pin_memory=False, shuffle=True, num_workers=4, drop_last=True)

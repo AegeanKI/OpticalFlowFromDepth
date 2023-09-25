@@ -11,8 +11,7 @@ import os.path as osp
 
 from utils import frame_utils
 from data.transforms import FlowAugmentor, SparseFlowAugmentor
-from data.my_dataloader import AugmentedDIML, AugmentedFiltedReDWeb, FlowDIML, FlowFiltedReDWeb
-from data.my_dataloader import VEMDIML, VEMFiltedReDWeb, AugmentedVEMDIML
+from data.my_dataloader import AugmentedDIML, AugmentedReDWeb
 
 class FlowDataset(data.Dataset):
     def __init__(self, aug_params=None, sparse=False,
@@ -321,9 +320,9 @@ class HD1K(FlowDataset):
 
             seq_ix += 1
 
-class RAFTAugmentedDataset(FlowDataset):
+class GMFlowAugmentedDataset(FlowDataset):
     def __init__(self, aug_params=None, split='training'):
-        super(RAFTAugmentedDataset, self).__init__(aug_params)
+        super().__init__(aug_params)
 
         self.augmenteddataset = None
 
@@ -359,57 +358,17 @@ class RAFTAugmentedDataset(FlowDataset):
         return img1, img2, flow, img1_depth, valid.float(), label
 
 
-# class RAFTAugmentedReDWeb(RAFTAugmentedDataset):
-#     def __init__(self, aug_params=None, split='training'):
-#         super(RAFTAugmentedReDWeb, self).__init__(aug_params)
-#         # if aug_params:
-#         #     h, w = aug_params['crop_size']
-#         #     self.augmenteddataset = AugmentedReDWeb(normalize_dataset=False, size=(h + 1, w + 1))
-#         # else:
-#         #     self.augmenteddataset = AugmentedReDWeb(normalize_dataset=False, size=None)
-
-class RAFTAugmentedFiltedReDWeb(RAFTAugmentedDataset):
+class GMFlowAugmentedReDWeb(GMFlowAugmentedDataset):
     def __init__(self, aug_params=None, split='training'):
-        super(RAFTAugmentedFiltedReDWeb, self).__init__(aug_params)
+        super().__init__(aug_params)
         
-        self.augmenteddataset = AugmentedFiltedReDWeb(normalize_dataset=False)
+        self.augmenteddataset = AugmentedReDWeb(normalize_dataset=False)
 
-class RAFTAugmentedDIML(RAFTAugmentedDataset):
+class GMFlowAugmentedDIML(GMFlowAugmentedDataset):
     def __init__(self, aug_params=None, split='training'):
-        super(RAFTAugmentedDIML, self).__init__(aug_params)
+        super().__init__(aug_params)
         
         self.augmenteddataset = AugmentedDIML(normalize_dataset=False)
-
-class RAFTFlowDIML(RAFTAugmentedDataset):
-    def __init__(self, aug_params=None, split='training'):
-        super(RAFTFlowDIML, self).__init__(aug_params)
-        
-        self.augmenteddataset = FlowDIML(normalize_dataset=False)
-
-class RAFTVEMDIML(RAFTAugmentedDataset):
-    def __init__(self, aug_params=None, split='training'):
-        super(RAFTVEMDIML, self).__init__(aug_params)
- 
-        self.augmenteddataset = VEMDIML(normalize_dataset=False)
-
-class RAFTAugmentedVEMDIML(RAFTAugmentedDataset):
-    def __init__(self, aug_params=None, split='training'):
-        super(RAFTAugmentedVEMDIML, self).__init__(aug_params)
- 
-        self.augmenteddataset = AugmentedVEMDIML(normalize_dataset=False)
-
-
-class RAFTFlowFiltedReDWeb(RAFTAugmentedDataset):
-    def __init__(self, aug_params=None, split='training'):
-        super(RAFTFlowFiltedReDWeb, self).__init__(aug_params)
-        
-        self.augmenteddataset = FlowFiltedReDWeb(normalize_dataset=False)
-
-class RAFTVEMFiltedReDWeb(RAFTAugmentedDataset):
-    def __init__(self, aug_params=None, split='training'):
-        super(RAFTVEMFiltedReDWeb, self).__init__(aug_params)
-
-        self.augmenteddataset = VEMFiltedReDWeb(normalize_dataset=False)
 
 def build_train_dataset(args):
     """ Create the data loader for the corresponding training set """
@@ -456,60 +415,25 @@ def build_train_dataset(args):
 
         train_dataset = KITTI12(aug_params, split='training',)
     
-    elif args.stage == "augmentedredweb":
-        aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
-        train_dataset = RAFTAugmentedReDWeb(aug_params, split='training')
-
     elif args.stage == "augmenteddiml":
         print(f"{args = }")
         aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
         # aug_params = {'crop_size': args.image_size, 'min_scale': -0.4, 'max_scale': 0.8, 'do_flip': True} # things
         # aug_params = {'crop_size': args.image_size, 'min_scale': -0.2, 'max_scale': 0.4, 'do_flip': True} # kitti
-        train_dataset = RAFTAugmentedDIML(aug_params, split='training')
+        train_dataset = GMFlowAugmentedDIML(aug_params, split='training')
 
-    elif args.stage == "augmentedfiltedredweb":
+    elif args.stage == "augmentedredweb":
         print(f"{args = }")
         aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
-        train_dataset = RAFTAugmentedFiltedReDWeb(aug_params, split='training')
-
-    elif args.stage == "flowdiml":
-        print(f"{args = }")
-        aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
-        train_dataset = RAFTFlowDIML(aug_params, split='training')
-
-    elif args.stage == "flowfiltedredweb":
-        print(f"{args = }")
-        aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
-        train_dataset = RAFTFlowFiltedReDWeb(aug_params, split='training')
-
-    elif args.stage == "vemdiml":
-        print(f"{args = }")
-        aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
-        train_dataset = RAFTVEMDIML(aug_params, split='training')
-
-    elif args.stage == "vemfiltedredweb":
-        print(f"{args = }")
-        aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
-        train_dataset = RAFTVEMFiltedReDWeb(aug_params, split='training')
+        train_dataset = GMFlowAugmentedReDWeb(aug_params, split='training')
 
     elif args.stage == "mixed":
         print(f"{args = }")
         aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
         # aug_params = {'crop_size': args.image_size, 'min_scale': -0.2, 'max_scale': 0.4, 'do_flip': True} # kitti
-        ar = RAFTAugmentedFiltedReDWeb(aug_params, split='training')
-        ad = RAFTAugmentedDIML(aug_params, split='training')
+        ar = GMFlowAugmentedReDWeb(aug_params, split='training')
+        ad = GMFlowAugmentedDIML(aug_params, split='training')
         train_dataset = ar + ad
-
-    elif args.stage == "augmentedvemdiml":
-        print(f"{args = }")
-        aug_params = {'crop_size': args.image_size, 'min_scale': -0.1, 'max_scale': 1.0, 'do_flip': True}
-        train_dataset = RAFTAugmentedVEMDIML(aug_params, split='training')
-
-    elif args.stage == "finetunekitti":
-        aug_params = {'crop_size': args.image_size, 'min_scale': -0.2, 'max_scale': 0.4, 'do_flip': False}
-        train_dataset = FineTuneKITTI(aug_params, split='training',)
-
-
 
     else:
         raise ValueError(f'stage {args.stage} is not supported')

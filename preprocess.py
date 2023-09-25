@@ -18,7 +18,7 @@ from alt_cuda.fw import FW
 from collections import defaultdict
 import random
 from argparse import ArgumentParser
-from dataloader import DIML, FiltedReDWeb, COCO
+from dataloader import DIML, ReDWeb, COCO
 import copy
 
 class SpecialFlow(nn.Module):
@@ -46,7 +46,6 @@ class SpecialFlow(nn.Module):
 
     def _flip(self, size):
         h, w = size
-        # horizontal = utils.get_random(0, 1) > 0
         self.horizontal_flip = not self.horizontal_flip
 
         if self.horizontal_flip:
@@ -64,8 +63,7 @@ class SpecialFlow(nn.Module):
         h, w = size
         c0 = (utils.get_random(w / 4, w / 2) + w / 2, utils.get_random(h / 4, h / 2) + h / 2)
         c0 = torch.tensor(c0).to(self.device)
-        theta = torch.deg2rad(utils.get_random(2, 8)).to(self.device) # 8 - 10
-        # theta = torch.deg2rad(utils.get_random(3, 5)).to(self.device) # 5 - 8
+        theta = torch.deg2rad(utils.get_random(2, 8)).to(self.device)
 
         rotate = torch.tensor([[torch.cos(theta), -torch.sin(theta)],
                                [torch.sin(theta), torch.cos(theta)]]).type(torch.float32).to(self.device)
@@ -83,8 +81,7 @@ class SpecialFlow(nn.Module):
     def _shear(self, size):
         h, w = size
         self.horizontal_shear = not self.horizontal_shear
-        shear_range = utils.get_random(0.15, 0.2) # 0.2 - 0.35
-        # shear_range = utils.get_random(0.2, 0.1) # 0.1 - 0.3
+        shear_range = utils.get_random(0.15, 0.2)
 
         if self.horizontal_shear:
             shear = torch.tensor([[1, 0], [shear_range, 1]]).type(torch.float32).to(self.device)
@@ -107,102 +104,6 @@ class SpecialFlow(nn.Module):
         p0 = torch.stack(meshgrid, axis=-1).type(torch.float32).to(self.device)
         return p0
 
-
-def augment_flow_small(img0, img0_depth, img1, img1_depth,
-                       flow01, back_flow01, device=None, augment_flow_type=None):
-    _, h, w = img0.shape
-    h_len = int(utils.get_random(h / 4, h / 4, False)) # 1/4 - 1/2
-    w_len = int(utils.get_random(w / 4, w / 4, False)) # 1/4 - 1/2
-    h_start = int(utils.get_random(h - h_len, 0, False))
-    w_start = int(utils.get_random(w - w_len, 0, False))
-    h_end = h_start + h_len
-    w_end = w_start + w_len
-
-    if augment_flow_type is None:
-        augment_flow_type = utils.get_random(8, 0, False)
-    fw = FW(device).to(device)
-    cf = ConcatFlow(device).to(device)
-    bf = BackFlow(device).to(device)
-    sf = SpecialFlow(device).to(device)
-    if augment_flow_type >= 5.:
-        _, h, w = img0.shape
-        special_flow_small, back_special_flow_small = sf((h_len, w_len), augment_flow_type)
-        special_flow = torch.zeros_like(flow01).to(device)
-        back_special_flow = torch.zeros_like(flow01).to(device)
-        special_flow[:, h_start:h_end, w_start:w_end] = special_flow_small
-        back_special_flow[:, h_start:h_end, w_start:w_end] = back_special_flow_small
-
-        augment_img0_flow, augment_img0_flow_valid = cf(back_special_flow, special_flow, flow01, img0_depth)
-        augment_img1_flow, augment_img1_flow_valid = cf(flow01, back_flow01, special_flow, img1_depth)
-
-        img0_all = torch.cat((img0, img0_depth), axis=0)
-        augment_img0_all, valid, collision = fw(img0_all, special_flow, img0_depth)
-        augment_img0 = augment_img0_all[0:3]
-        augment_img0 = utils.inpaint(augment_img0, valid, collision)
-        augment_img0_depth = augment_img0_all[3:4]
-        augment_img0_depth = utils.fix_warped_depth(augment_img0_depth)
-        img1_all = torch.cat((img1, img1_depth), axis=0)
-        augment_img1_all, valid, collision = fw(img1_all, special_flow, img1_depth)
-        augment_img1 = augment_img1_all[0:3]
-        augment_img1 = utils.inpaint(augment_img1, valid, collision)
-        augment_img1_depth = augment_img1_all[3:4]
-        augment_img1_depth = utils.fix_warped_depth(augment_img1_depth)
-
-        back_augment_img0_flow, back_augment_img0_flow_valid = bf(augment_img0_flow, augment_img0_depth)
-        back_augment_img1_flow, back_augment_img1_flow_valid = bf(augment_img1_flow, img0_depth)
-        
-        del fw, cf, bf, sf
-        # del special_flow, back_special_flow
-
-        return (augment_img0, augment_img0_depth,
-                augment_img0_flow, back_augment_img0_flow, 
-                img1, img1_depth), (
-                img0, img0_depth,
-                augment_img1_flow, back_augment_img1_flow,
-                augment_img1, augment_img1_depth), int(augment_flow_type), (special_flow, back_special_flow)
-    elif augment_flow_type >= 3.:
-        pass
-    elif augment_flow_type >= 0.:
-        if augment_flow_type >= 2.:
-            gray = torch.tensor([[0.2989, 0.2989, 0.2989],
-                                 [0.5870, 0.5870, 0.5870],
-                                 [0.1140, 0.1140, 0.1140]]).type(torch.float32).to(device)
-            augment_img_func = lambda img, g=gray: (img.permute(1, 2, 0) @ g).permute(2, 0, 1)
-        elif augment_flow_type >= 1.:
-            channel = int(utils.get_random(3, 0, False))
-            shift = torch.zeros_like(img0[:, h_start:h_end, w_start:w_end])
-            shift[channel, :, :] = utils.get_random(10, 15)
-            augment_img_func = lambda img, c=channel, s=shift: img + s 
-        elif augment_flow_type >= 0.:
-            scale = utils.get_random(1, 0, False)
-            augment_img_func = lambda img, s=scale: img * s
-
-        # print(f"{img0.dtype = }")
-        # print(f"{img1.dtype = }")
-        augment_img0 = copy.deepcopy(img0)
-        augment_img1 = copy.deepcopy(img1)
-        augment_img0_small = augment_img_func(img0[:, h_start:h_end, w_start:w_end])
-        augment_img1_small = augment_img_func(img1[:, h_start:h_end, w_start:w_end])
-        augment_img0[:, h_start:h_end, w_start:w_end] = augment_img0_small
-        augment_img1[:, h_start:h_end, w_start:w_end] = augment_img1_small
-
-        if augment_flow_type >= 2.:
-            del gray
-        elif augment_flow_type >= 1.:
-            del channel, shift
-        elif augment_flow_type >= 0.:
-            del scale
-        del fw, cf, bf
-        del augment_img_func
-            
-        return (augment_img0, img0_depth,
-                flow01, back_flow01, 
-                img1, img1_depth), (
-                img0, img0_depth,
-                flow01, back_flow01, 
-                augment_img1, img1_depth), int(augment_flow_type), None
-
-
 def augment_flow(img0, img0_depth, img1, img1_depth,
                  flow01, back_flow01, device=None, augment_flow_type=None):
     _, h, w = img0.shape
@@ -217,10 +118,6 @@ def augment_flow(img0, img0_depth, img1, img1_depth,
         special_flow, back_special_flow = sf((h, w), augment_flow_type)
         special_flow = special_flow.to(device)
         back_special_flow = back_special_flow.to(device)
-        # special_flow = special_flow.repeat(b, 1, 1, 1)
-        # back_special_flow = back_special_flow.repeat(b, 1, 1, 1)
-
-        # augment_img0_flow = cf(special_flow, back_special_flow, flow01, img0_depth)
         augment_img0_flow, augment_img0_flow_valid = cf(back_special_flow, special_flow, flow01, img0_depth)
         augment_img1_flow, augment_img1_flow_valid = cf(flow01, back_flow01, special_flow, img1_depth)
 
@@ -241,7 +138,6 @@ def augment_flow(img0, img0_depth, img1, img1_depth,
         back_augment_img1_flow, back_augment_img1_flow_valid = bf(augment_img1_flow, img0_depth)
         
         del fw, cf, bf, sf
-        # del special_flow, back_special_flow
 
         return (augment_img0, augment_img0_depth,
                 augment_img0_flow, back_augment_img0_flow, 
@@ -251,62 +147,6 @@ def augment_flow(img0, img0_depth, img1, img1_depth,
                 augment_img1, augment_img1_depth), int(augment_flow_type), (special_flow, back_special_flow)
     elif augment_flow_type >= 3.:
         pass
-        # if augment_flow_type >= 4.:
-        #     h_len = int(utils.get_random(h / 4, h / 2, False))
-        #     w_len = int(utils.get_random(w / 4, w / 2, False))
-        # elif augment_flow_type >= 3.:
-        #     h_len = int(utils.get_random(h / 4, h / 4, False))
-        #     w_len = int(utils.get_random(w / 4, w / 4, False))
-        # h_start = int(utils.get_random(h - h_len, 0, False))
-        # w_start = int(utils.get_random(w - w_len, 0, False))
-
-        # mask_all = torch.ones((b, 3 + 1 + 2, h, w)).to(device)
-        # mask_all[:, :, h_start:h_start + h_len, w_start:w_start + w_len] = 0
-
-        # if augment_flow_type >= 4.:
-        #     mask_all = mask_all * -1 + 1 # xor for float
-        # img_mask, depth_mask, flow_mask = mask_all[:, 0:3], mask_all[:, 3:4], mask_all[:, 4:6]
-        # mask_all_fw, valid, collision = fw(mask_all, flow01, img0_depth)
-        # mask_all_bf, valid, collision = fw(mask_all, back_flow01, img1_depth)
-        # img_mask_fw, depth_mask_fw, flow_mask_fw = mask_all_fw[:, 0:3], mask_all_fw[:, 3:4], mask_all_fw[:, 4:6]
-        # img_mask_bf, depth_mask_bf, flow_mask_bf = mask_all_bf[:, 0:3], mask_all_bf[:, 3:4], mask_all_bf[:, 4:6]
-
-        # augment_img0 = img0 * img_mask
-        # augment_img0_depth = img0_depth * depth_mask
-        # augment_img0_depth = utils.fix_depth(augment_img0_depth, augment_img0)
-        # augment_img1 = img1 * img_mask
-        # augment_img1_depth = img1_depth * depth_mask
-        # augment_img1_depth = utils.fix_depth(augment_img1_depth, augment_img1)
-
-        # augment_img0_flow = flow01 * flow_mask
-        # augment_img1_flow = flow01 * flow_mask_bf
-        # back_augment_img0_flow = back_flow01 * flow_mask_fw
-        # back_augment_img1_flow = back_flow01 * flow_mask
-
-        # adjust = utils.get_random(0, 1) > 0
-        # adjust_img0, adjust_img0_depth = img0, img0_depth
-        # adjust_img1, adjust_img1_depth = img1, img1_depth
-        # if adjust:
-        #     adjust_img0 = img0 * img_mask_bf
-        #     adjust_img0_depth = img0_depth * depth_mask_bf
-        #     adjust_img0_depth = utils.fix_depth(adjust_img0_depth, adjust_img0)
-        #     adjust_img1 = img1 * img_mask_fw
-        #     adjust_img1_depth = img1_depth * depth_mask_fw
-        #     adjust_img1_depth = utils.fix_depth(adjust_img1_depth, adjust_img1)
-        
-        # del fw, cf, bf
-        # del h_len, w_len, h_start, w_start
-        # del img_mask, depth_mask, flow_mask
-        # del mask_all, mask_all_fw, mask_all_bf
-        # del img_mask_fw, depth_mask_fw, flow_mask_fw
-        # del img_mask_bf, depth_mask_bf, flow_mask_bf
-
-        # return (augment_img0, augment_img0_depth,
-        #         augment_img0_flow, back_augment_img0_flow, 
-        #         adjust_img1, adjust_img1_depth), (
-        #         adjust_img0, adjust_img0_depth,
-        #         augment_img1_flow, back_augment_img1_flow,
-        #         augment_img1, augment_img1_depth), int(augment_flow_type)
     elif augment_flow_type >= 0.:
         if augment_flow_type >= 2.:
             gray = torch.tensor([[0.2989, 0.2989, 0.2989],
@@ -321,9 +161,6 @@ def augment_flow(img0, img0_depth, img1, img1_depth,
         elif augment_flow_type >= 0.:
             scale = utils.get_random(1, 0, False)
             augment_img_func = lambda img, s=scale: img * s
-
-        # print(f"{img0.dtype = }")
-        # print(f"{img1.dtype = }")
 
         augment_img0 = augment_img_func(img0)
         augment_img1 = augment_img_func(img1)
@@ -397,34 +234,9 @@ class Plausible():
         del camera_ang, camera_mot
         return T, axisangle, translation
 
-    # @staticmethod
-    # def random_continuous_motion(axisangle_range, axisangle_base, translation_range,
-    #                              translation_base, n_continuous):
-    #     ax = utils.get_random(math.pi * axisangle_range, math.pi * axisangle_base)
-    #     ay = utils.get_random(math.pi * axisangle_range, math.pi * axisangle_base)
-    #     az = utils.get_random(math.pi * axisangle_range, math.pi * axisangle_base)
-    #     camera_ang = [ax, ay, az]
-
-    #     cx = utils.get_random(translation_range, translation_base)
-    #     cy = utils.get_random(translation_range, translation_base)
-    #     cz = utils.get_random(translation_range, translation_base)
-    #     camera_mot = [cx, cy, cz]
-
-    #     # continuous_coeff = torch.arange(1, n_continuous + 1) / n_continuous
-    #     continuous_coeff = torch.arange(1, n_continuous + 1)
-    #     continuous_axisangle = [c * torch.tensor([[camera_ang]]) for c in continuous_coeff]
-    #     continuous_translation = [c * torch.tensor([[camera_mot]]) for c in continuous_coeff]
-
-    #     Ts = [geometry.transformation_from_parameters(a, t)
-    #           for a, t in zip(continuous_axisangle, continuous_translation)]
-    #     Ts = torch.stack(Ts)
-    #     return Ts
-
-
 class Convert():
     @staticmethod
     def depth_to_disparity(depth):
-        # _, _, w = depth.shape
         s = utils.get_random(0.3, 0.8, random_sign=False)
         B, f = Plausible.B(), Plausible.f()
 
@@ -435,25 +247,10 @@ class Convert():
 
     @staticmethod
     def disparity_to_flow(disparity, device=None, random_sign=True):
-        
         flow = torch.cat((disparity, torch.zeros_like(disparity)), axis=0) * -1.0
         if random_sign:
             flow = flow * utils.get_random(0, 1)
         flow = flow.to(device)
- 
-        # _, h, w = disparity.shape
-        # meshgrid = torch.meshgrid(torch.arange(w), torch.arange(h), indexing="xy")
-        # p0 = torch.stack(meshgrid, axis=0).type(torch.float32).to(device)
-        # p1 = p0 + flow
-        # print(f"{p1 = }")
-        # safe_y = torch.clamp(p1[1:2, ...], min=0, max=h-1).type(torch.int64).type(torch.float32)
-        # safe_x = torch.clamp(p1[0:1, ...], min=0, max=w-1).type(torch.int64).type(torch.float32)
-        # p1_clamp = torch.cat((safe_x, safe_y), axis=0)
-        # print(f"{p1_clamp = }")
-        # flow_clamp = p1_clamp - p0
-        # print(f"{flow = }")
-        # print(f"{flow_clamp = }")
-
         return flow
 
     @staticmethod
@@ -465,7 +262,6 @@ class Convert():
         return depth
 
     @staticmethod
-    # def depth_to_random_flow(depth, device=None, segment=None, n_continuous=1, T1=None):
     def depth_to_random_flow(depth, device=None, segment=None, T1=None):
         _, h, w = depth.shape
         depth = depth.unsqueeze(0)
@@ -478,8 +274,6 @@ class Convert():
             cam_points = backproject_depth(depth, inv_K)
 
         if T1 is None:
-            # T1, _, _ = Plausible.random_motion(1. / (36. * n_continuous), 1. / (36. * n_continuous),
-            #                                    0.1 / n_continuous, 0.1 / n_continuous) 
             T1, _, _ = Plausible.random_motion(1. / 36., 1. / 36., 0.1, 0.1) 
             T1 = T1.to(device)
 
@@ -490,7 +284,6 @@ class Convert():
         p1 = (p1 + 1) / 2
         p1[:, :, :, 0] *= w - 1
         p1[:, :, :, 1] *= h - 1
-        # p1 = p1.double()
 
         meshgrid = torch.meshgrid(torch.arange(w), torch.arange(h), indexing="xy")
         p0 = torch.stack(meshgrid, axis=-1).type(torch.float32).to(device)
@@ -545,84 +338,37 @@ class PreprocessPlusAugment(nn.Module):
         self.bf.eval()
 
     # def forward(self, img0, img0_depth, output_dir):
-    def forward(self, datas, output_dir, is_stereo=False, augment_small=False, n_continuous=4):
+    def forward(self, datas, output_dir, is_stereo=False, n_continuous=4):
         n_continuous = n_continuous - 1
         start_preprocess_time = time.time()
         print(f"{output_dir = }")
         idx = output_dir.split("/")[-1]
         print("preprocessing ...\r", end='')
 
-        # test_output_dir = f"test_output/{idx}"
-        # group_output_dir = f"{test_output_dir}/group"
-        # print(f"{group_output_dir = }")
-        # if not os.path.exists(group_output_dir):
-        #     os.makedirs(group_output_dir)
-
         if not is_stereo:
             img0, img0_depth = datas
-            img0 = img0.to(self.device)
             img0_depth = img0_depth.to(self.device)
-            # img0_depth = utils.fix_warped_depth(img0_depth)
-            img0_depth = utils.normalize_depth(img0_depth)
-            disp0 = Convert.depth_to_disparity(img0_depth)
-            flow01 = Convert.disparity_to_flow(disp0, device=self.device)
-            img0_all = torch.cat((img0, img0_depth, flow01 * -1), axis=0) 
-            img0_all_fw, img1_valid, collision = self.fw(img0_all, flow01, img0_depth)
-            img0_all_fw = img0_all_fw.squeeze(0) 
-            img1, img1_depth, back_flow01 = img0_all_fw[0:3], img0_all_fw[3:4], img0_all_fw[4:6]
-            img1 = img1 * img1_valid
-            img1_depth = img1_depth * img1_valid
-            back_flow01 = back_flow01 * img1_valid
-            img1 = utils.inpaint(img1, img1_valid, collision)
-            img1_depth = utils.fix_warped_depth(img1_depth)
         else:
-            img0, img1, disp0, disp1 = datas
-            img0 = img0.to(self.device)
-            img1 = img1.to(self.device)
-            img1_real = img1
+            img0, img1, disp0 = datas
             img0_depth = Convert.disparity_to_depth(disp0).to(device)
-            # img0_depth = utils.fix_warped_depth(img0_depth)
-            img0_depth = utils.normalize_depth(img0_depth)
-            flow01 = Convert.disparity_to_flow(disp0, device=self.device, random_sign=False)
-            has_disp1 = (disp1 is not None)
-            if has_disp1:
-                img1_depth = Convert.disparity_to_depth(disp1).to(device)
-                # img1_depth = utils.fix_warped_depth(img1_depth)
-                img1_depth = utils.normalize_depth(img1_depth)
-                back_flow01 = Convert.disparity_to_flow(disp1, device=self.device, random_sign=True) * -1.0
-            else:
-                img0_all = torch.cat((img0, img0_depth, flow01 * -1.0), axis=0) 
-                img0_all_fw, img1_valid, collision = self.fw(img0_all, flow01, img0_depth)
-                img0_all_fw = img0_all_fw.squeeze(0)
-                img1, img1_depth, back_flow01 = img0_all_fw[0:3], img0_all_fw[3:4], img0_all_fw[4:6]
-                img1 = img1 * img1_valid
-                img1_depth = img1_depth * img1_valid
-                back_flow01 = back_flow01 * img1_valid
-                img1_depth = utils.fix_warped_depth(img1_depth)
-                # cv2.imwrite(f"{group_output_dir}/img1_before.png", img1.permute(1, 2, 0).cpu().numpy())
-                img1 = utils.inpaint(img1, img1_valid, collision)
-                # cv2.imwrite(f"{group_output_dir}/img1_after.png", img1.permute(1, 2, 0).cpu().numpy())
-
-                # H = valid[0].cpu().numpy()
-                # M = collision[0].cpu().numpy()
-                # M = (1 - (H == M)).astype(np.uint8)
-                # M_prime = cv2.dilate(M, kernel=np.ones((3, 3,), np.uint8), iterations=1)
-                # P = (M_prime == M).astype(np.uint8)
-                # H_prime = (H * P).astype(np.uint8)
-                # cv2.imwrite(f"{group_output_dir}/img1_H_mask.png", H * 255)
-                # cv2.imwrite(f"{group_output_dir}/img1_M_mask.png", M * 255)
-                # cv2.imwrite(f"{group_output_dir}/img1_P_mask.png", P * 255)
-                # cv2.imwrite(f"{group_output_dir}/img1_H_prime_mask.png", H_prime * 255)
-                # cv2.imwrite(f"{group_output_dir}/img1_M_prime_mask.png", M_prime * 255)
-
+        img0 = img0.to(self.device)
+        img0_depth = utils.normalize_depth(img0_depth)
+        disp0 = Convert.depth_to_disparity(img0_depth)
+        flow01 = Convert.disparity_to_flow(disp0, device=self.device, random_sign=False)
+        img0_all = torch.cat((img0, img0_depth, flow01 * -1.0), axis=0) 
+        img0_all_fw, img1_valid, collision = self.fw(img0_all, flow01, img0_depth)
+        img0_all_fw = img0_all_fw.squeeze(0)
+        img1, img1_depth, back_flow01 = img0_all_fw[0:3], img0_all_fw[3:4], img0_all_fw[4:6]
+        img1 = img1 * img1_valid
+        img1_depth = img1_depth * img1_valid
+        back_flow01 = back_flow01 * img1_valid
+        img1_depth = utils.fix_warped_depth(img1_depth)
+        img1 = utils.inpaint(img1, img1_valid, collision)
 
         assert torch.sum(torch.logical_and(img1_valid != 0, img1_valid != 1)) == 0
-        # unify mono: (img0, img0_depth), and stero: (img0, img0, disp0, disp1)
-        # to (img0, img0_depth, flow01, back_flow01, img1, img1_depth)
 
         _, h, w = img0.shape
         
-        # flow12, T1 = Convert.depth_to_random_flow(img1_depth, self.device, n_continuous=n_continuous)
         flow12, T1 = Convert.depth_to_random_flow(img1_depth, self.device)
         img1_all = torch.cat((img1, img1_depth, flow12 * -1.0, img1_valid), axis=0) 
         img1_all_fw, valid, collision = self.fw(img1_all, flow12, img1_depth)
@@ -632,26 +378,9 @@ class PreprocessPlusAugment(nn.Module):
         img2 = img2 * img2_valid
         img2_depth = img2_depth * img2_valid
         back_flow12 = back_flow12 * img2_valid
-        # cv2.imwrite(f"{group_output_dir}/img2_before.png", img2.permute(1, 2, 0).cpu().numpy())
         img2 = utils.inpaint(img2, img2_valid, collision)
-        # cv2.imwrite(f"{group_output_dir}/img2_after.png", img2.permute(1, 2, 0).cpu().numpy())
         img2_depth = utils.fix_warped_depth(img2_depth)
         assert torch.sum(torch.logical_and(img2_valid != 0, img2_valid != 1)) == 0
-
-        # H = valid[0].cpu().numpy()
-        # M = collision[0].cpu().numpy()
-        # M = (1 - (H == M)).astype(np.uint8)
-        # M_prime = cv2.dilate(M, kernel=np.ones((3, 3,), np.uint8), iterations=1)
-        # P = (M_prime == M).astype(np.uint8)
-        # H_prime = (H * P).astype(np.uint8)
-        # cv2.imwrite(f"{group_output_dir}/img2_H_mask.png", H * 255)
-        # cv2.imwrite(f"{group_output_dir}/img2_M_mask.png", M * 255)
-        # cv2.imwrite(f"{group_output_dir}/img2_P_mask.png", P * 255)
-        # cv2.imwrite(f"{group_output_dir}/img2_H_prime_mask.png", H_prime * 255)
-        # cv2.imwrite(f"{group_output_dir}/img2_M_prime_mask.png", M_prime * 255)
-
-        # 0 1
-        # 3 2
 
         flow03, _ = Convert.depth_to_random_flow(img0_depth, self.device, T1=T1)
         img0_all = torch.cat((img0, img0_depth, flow03 * -1.0), axis=0) 
@@ -661,23 +390,12 @@ class PreprocessPlusAugment(nn.Module):
         img3 = img3 * img3_valid
         img3_depth = img3_depth * img3_valid
         back_flow03 = back_flow03 * img3_valid
-        # cv2.imwrite(f"{group_output_dir}/img3_before.png", img3.permute(1, 2, 0).cpu().numpy())
         img3 = utils.inpaint(img3, img3_valid, collision)
-        # cv2.imwrite(f"{group_output_dir}/img3_after.png", img3.permute(1, 2, 0).cpu().numpy())
         img3_depth = utils.fix_warped_depth(img3_depth)
         assert torch.sum(torch.logical_and(img3_valid != 0, img3_valid != 1)) == 0
 
-        # back_flow13 = self.bf(flow13, img1_depth)
-
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
-
-        # to_save_data0 = torch.cat((img0, img0_depth, img1, img1_depth, img2, img2_depth, img3, img3_depth,
-        #                            flow01, back_flow01, flow12, back_flow12, flow02, back_flow02, 
-        #                            flow03, back_flow03, flow13, back_flow13), axis=0).cpu().numpy()
-                                 #  0:3,        3:4,  4:7,        7:8, 8:11,      11:12, 12:15,     15:16,
-                                 #  16:18,       18:20,  20:22,       22:24,  24:26,       26:28,
-                                 #  28:30,       30:32,  32:34,       34:36,
 
         flow02, flow02_valid = self.cf(flow01, back_flow01, flow12, img1_depth)
         img0_all = torch.cat((img0, img0_depth, flow02 * -1.0, flow02_valid), axis=0) 
@@ -698,7 +416,6 @@ class PreprocessPlusAugment(nn.Module):
         img1_all = torch.cat((img1, img1_depth, flow13 * -1.0, flow13_valid), axis=0) 
         img1_all_fw, valid, collision = self.fw(img1_all, flow13, img1_depth)
         img3_prime, img3_depth_prime, back_flow13_prime, fw_flow13_valid = img1_all_fw[0:3], img1_all_fw[3:4], img1_all_fw[4:6], img1_all_fw[6:7]
-        # img3_prime_valid = valid
         img3_prime_valid = valid * fw_flow13_valid
         img3_prime = img3_prime * img3_prime_valid
         img3_depth_prime = img3_depth_prime * img3_prime_valid
@@ -716,16 +433,11 @@ class PreprocessPlusAugment(nn.Module):
         for group_idx, pair in enumerate(group):
             to_save_data0 = torch.cat(pair, axis=0).cpu().numpy()
             assert to_save_data0.shape == (12, h, w), "wrong data shape"
-            # np.savez_compressed(f"{output_dir}/{group_idx}_0.npz", img_depth_flow=to_save_data0)
 
         to_save_data0 = torch.cat((img0, img0_depth, img1, img1_depth, img2, img2_depth, img3, img3_depth,
                                    img2_prime, img2_depth_prime, img3_prime, img3_depth_prime, 
                                    flow01, back_flow01, flow12, back_flow12, flow02, back_flow02_prime, 
                                    flow03, back_flow03, flow13, back_flow13_prime), axis=0).cpu().numpy()
-                                  # 0:3,        3:4,  4:7,        7:8, 8:11,      11:12, 12:15,     15:16,
-                                  #    16:19,             19:20,      20:23,            23:24,
-                                  # 24:26,       26:28,  28:30,       30:32,  32:34,       34:36,
-                                  # 36:38,       38:40,  40:42,       42:44,
 
         if to_save_data0.shape != (44, h, w):
             print(f"something wrong when preprocess {output_dir}, {to_save_data0.shape = }")
@@ -734,219 +446,35 @@ class PreprocessPlusAugment(nn.Module):
         np.savez_compressed(f"{output_dir}/group.npz",
                             img_depth_flow=to_save_data0)
 
-        # cv2.imwrite(f"{group_output_dir}/img0.png", img0.permute(1, 2, 0).cpu().numpy())
-        # plt.imsave(f"{group_output_dir}/img0_depth.png", 1 / img0_depth[0].cpu().numpy(), cmap="magma")
-        # cv2.imwrite(f"{group_output_dir}/img1.png", img1.permute(1, 2, 0).cpu().numpy())
-        # plt.imsave(f"{group_output_dir}/img1_depth.png", 1 / img1_depth[0].cpu().numpy(), cmap="magma")
-        # cv2.imwrite(f"{group_output_dir}/img2.png", img2.permute(1, 2, 0).cpu().numpy())
-        # cv2.imwrite(f"{group_output_dir}/img2_prime.png", img2_prime.permute(1, 2, 0).cpu().numpy())
-        # plt.imsave(f"{group_output_dir}/img2_depth_prime.png", 1 / img2_depth_prime[0].cpu().numpy(), cmap="magma")
-        # cv2.imwrite(f"{group_output_dir}/img3.png", img3.permute(1, 2, 0).cpu().numpy())
-        # cv2.imwrite(f"{group_output_dir}/img3_prime.png", img3_prime.permute(1, 2, 0).cpu().numpy())
-        # plt.imsave(f"{group_output_dir}/img3_depth.png", 1 / img3_depth[0].cpu().numpy(), cmap="magma")
-        # plt.imsave(f"{group_output_dir}/img3_depth_prime.png", 1 / img3_depth_prime[0].cpu().numpy(), cmap="magma")
-        # cv2.imwrite(f"{group_output_dir}/flow01.png", utils.color_flow(flow01.permute(1, 2, 0).unsqueeze(0).cpu())[1])
-        # cv2.imwrite(f"{group_output_dir}/back_flow01.png", utils.color_flow(back_flow01.permute(1, 2, 0).unsqueeze(0).cpu())[1])
-        # cv2.imwrite(f"{group_output_dir}/flow12.png", utils.color_flow(flow12.permute(1, 2, 0).unsqueeze(0).cpu())[1])
-        # cv2.imwrite(f"{group_output_dir}/back_flow12.png", utils.color_flow(back_flow12.permute(1, 2, 0).unsqueeze(0).cpu())[1])
-        # cv2.imwrite(f"{group_output_dir}/flow02.png", utils.color_flow(flow02.permute(1, 2, 0).unsqueeze(0).cpu())[1])
-        # cv2.imwrite(f"{group_output_dir}/back_flow02_prime.png", utils.color_flow(back_flow02_prime.permute(1, 2, 0).unsqueeze(0).cpu())[1])
-        # # cv2.imwrite(f"{group_output_dir}/flow10.png", utils.color_flow(back_flow01.permute(1, 2, 0).unsqueeze(0).cpu())[1])
-        # cv2.imwrite(f"{group_output_dir}/flow03.png", utils.color_flow(flow03.permute(1, 2, 0).unsqueeze(0).cpu())[1])
-        # cv2.imwrite(f"{group_output_dir}/back_flow03.png", utils.color_flow(back_flow03.permute(1, 2, 0).unsqueeze(0).cpu())[1])
-        # cv2.imwrite(f"{group_output_dir}/flow13.png", utils.color_flow(flow13.permute(1, 2, 0).unsqueeze(0).cpu())[1])
-        # cv2.imwrite(f"{group_output_dir}/back_flow13_prime.png", utils.color_flow(back_flow13_prime.permute(1, 2, 0).unsqueeze(0).cpu())[1])
-
-        # img0_mask = (img0_depth != 100).repeat(3, 1, 1)
-        # img1_mask = (img1_depth != 100).repeat(3, 1, 1)
-        # img2_mask = (img2_depth != 100).repeat(3, 1, 1)
-        # img2_mask_prime = (img2_depth_prime != 100).repeat(3, 1, 1)
-        # img3_mask = (img3_depth != 100).repeat(3, 1, 1)
-        # img3_mask_prime = (img3_depth_prime != 100).repeat(3, 1, 1)
-        # print(f"{img3_mask.shape = }")
-        # cv2.imwrite(f"{group_output_dir}/img0_mask.png", img0_mask.permute(1, 2, 0).cpu().numpy() * 255)
-        # cv2.imwrite(f"{group_output_dir}/img1_mask.png", img1_mask.permute(1, 2, 0).cpu().numpy() * 255)
-        # cv2.imwrite(f"{group_output_dir}/img2_mask.png", img2_mask.permute(1, 2, 0).cpu().numpy() * 255)
-        # cv2.imwrite(f"{group_output_dir}/img2_mask_prime.png", img2_mask_prime.permute(1, 2, 0).cpu().numpy() * 255)
-        # cv2.imwrite(f"{group_output_dir}/img3_mask.png", img3_mask.permute(1, 2, 0).cpu().numpy() * 255)
-        # cv2.imwrite(f"{group_output_dir}/img3_mask_prime.png", img3_mask_prime.permute(1, 2, 0).cpu().numpy() * 255)
-
-        # cv2.imwrite(f"{group_output_dir}/img0_masked.png", (img0 * img0_mask).permute(1, 2, 0).cpu().numpy())
-        # cv2.imwrite(f"{group_output_dir}/img1_masked.png", (img1 * img1_mask).permute(1, 2, 0).cpu().numpy())
-        # cv2.imwrite(f"{group_output_dir}/img2_masked.png", (img2 * img2_mask).permute(1, 2, 0).cpu().numpy())
-        # cv2.imwrite(f"{group_output_dir}/img2_masked_prime.png", (img2_prime * img2_mask_prime).permute(1, 2, 0).cpu().numpy())
-        # cv2.imwrite(f"{group_output_dir}/img3_masked.png", (img3 * img3_mask).permute(1, 2, 0).cpu().numpy())
-        # cv2.imwrite(f"{group_output_dir}/img3_masked_prime.png", (img3_prime * img3_mask_prime).permute(1, 2, 0).cpu().numpy())
-
-        # for idx, pair in enumerate(group):
-        #     # group = [(img0, img0_depth, img1, img1_depth, flow01, back_flow01),
-        #     warped_img, _, _ = self.fw(pair[0], pair[4], pair[1])
-        #     warped_img = warped_img * (pair[3] != 100)
-        #     cv2.imwrite(f"{group_output_dir}/warped_img{idx}.png", warped_img.permute(1, 2, 0).cpu().numpy())
-        #     mask = (pair[3] != 100).repeat(3, 1, 1)
-        #     cv2.imwrite(f"{group_output_dir}/mask{idx}.png", mask.permute(1, 2, 0).cpu().numpy() * 255)
-        #     backwarped_img, _, _ = self.fw(pair[2], pair[5], pair[3])
-        #     backwarped_img = backwarped_img * (pair[1] != 100)
-        #     cv2.imwrite(f"{group_output_dir}/backwarped_img{idx}.png", backwarped_img.permute(1, 2, 0).cpu().numpy())
-        #     mask = (pair[1] != 100).repeat(3, 1, 1)
-        #     cv2.imwrite(f"{group_output_dir}/back_mask{idx}.png", mask.permute(1, 2, 0).cpu().numpy() * 255)
-
-        # continuous_data = []
-        # imgi = img2
-        # imgi_depth = img2_depth
-        # for i in range(3, 2 + n_continuous):
-        #     flowii1, _ = Convert.depth_to_random_flow(imgi_depth, self.device, T1=T1)
-        #     imgi_all = torch.cat((imgi, imgi_depth, flowii1 * -1.0), axis=0) 
-        #     imgi_all_fw, valid, collision = self.fw(imgi_all, flowii1, imgi_depth)
-        #     imgi_all_fw = imgi_all_fw.squeeze(0) 
-        #     imgi1, imgi1_depth, back_flowii1 = imgi_all_fw[0:3], imgi_all_fw[3:4], imgi_all_fw[4:6]
-        #     imgi1 = utils.inpaint(imgi1, valid, collision)
-        #     imgi1_depth = utils.fix_warped_depth(imgi1_depth)
-        #     # cv2.imwrite(f"{group_output_dir}/img{i}.png", imgi1.permute(1, 2, 0).cpu().numpy())
-        #     # plt.imsave(f"{group_output_dir}/img{i}_depth.png", 1 / imgi1_depth[0].cpu().numpy(), cmap="magma")
-        
-        #     # warped_imgi1, _, _ = self.fw(imgi, flowii1, imgi_depth)
-        #     # cv2.imwrite(f"{group_output_dir}/warped_img{i}.png", warped_imgi1.permute(1, 2, 0).cpu().numpy())
-           
-        #     data = torch.cat((imgi1, imgi1_depth, flowii1, back_flowii1), axis=0)
-        #                     #   0:3,         3:4,     4:6,          6:8
-        #                     #  8:11,       11:12,   12:14,        14:16
-        #                     # 16:19,       19:20,   20:22,        22:24
-        #     continuous_data.append(data)
-
-        #     imgi = imgi1
-        #     imgi_depth = imgi1_depth
-
-        # to_save_data3 = torch.cat(continuous_data).cpu().numpy()
-        # # np.savez_compressed(f"{output_dir}/continuous_1.npz",
-        # #                     continuous_data=to_save_data3)
-
-        # flow0a, _ = Convert.depth_to_random_flow(img0_depth, self.device, T1=T1)
-        # img0_all = torch.cat((img0, img0_depth, flow0a * -1.0), axis=0) 
-        # img0_all_fw, valid, collision = self.fw(img0_all, flow0a, img0_depth)
-        # img0_all_fw = img0_all_fw.squeeze(0) 
-        # imga, imga_depth, back_flow0a = img0_all_fw[0:3], img0_all_fw[3:4], img0_all_fw[4:6]
-        # imga = utils.inpaint(imga, valid, collision)
-        # imga_depth = utils.fix_warped_depth(imga_depth)
-        # # cv2.imwrite(f"{group_output_dir}/img{2 + n_continuous}.png", imga.permute(1, 2, 0).cpu().numpy())
-        # # plt.imsave(f"{group_output_dir}/img{2 + n_continuous}_depth.png", 1 / imga_depth[0].cpu().numpy(), cmap="magma")
-
-        # continuous_data = [torch.cat((imga, imga_depth, flow0a, back_flow0a), axis=0)]
-        # imgi = imga
-        # imgi_depth = imga_depth
-        # flow0i = flow0a
-        # back_flow0i = back_flow0a
-        # for i in range(3 + n_continuous, 2 + n_continuous * 2):
-        #     flowii1, _ = Convert.depth_to_random_flow(imgi_depth, self.device, T1=T1)
-        #     imgi_all = torch.cat((imgi, imgi_depth, flowii1 * -1.0), axis=0) 
-        #     imgi_all_fw, valid, collision = self.fw(imgi_all, flowii1, imgi_depth)
-        #     imgi_all_fw = imgi_all_fw.squeeze(0) 
-        #     imgi1, imgi1_depth, back_flowii1 = imgi_all_fw[0:3], imgi_all_fw[3:4], imgi_all_fw[4:6]
-        #     imgi1 = utils.inpaint(imgi1, valid, collision)
-        #     imgi1_depth = utils.fix_warped_depth(imgi1_depth)
-        #     # cv2.imwrite(f"{group_output_dir}/img{i}.png", imgi1.permute(1, 2, 0).cpu().numpy())
-        #     # plt.imsave(f"{group_output_dir}/img{i}_depth.png", 1 / imgi1_depth[0].cpu().numpy(), cmap="magma")
-        
-        #     data = torch.cat((imgi1, imgi1_depth, flowii1, back_flowii1), axis=0)
-        #                     #   0:3,         3:4,     4:6,          6:8
-        #                     #  8:11,       11:12,   12:14,        14:16
-        #                     # 16:19,       19:20,   20:22,        22:24
-        #     continuous_data.append(data)
-
-        #     imgi = imgi1
-        #     imgi_depth = imgi1_depth
-       
-        # to_save_data4 = torch.cat(continuous_data).cpu().numpy()
-        # # np.savez_compressed(f"{output_dir}/continuous_0.npz",
-        # #                     continuous_data=to_save_data4)
-
-        # group = [(img0, img0_depth, img1, img1_depth, flow01, back_flow01),
-        #          (img1, img1_depth, img2, img2_depth, flow12, back_flow12),
-        #          (img0, img0_depth, img2, img2_depth, flow02, back_flow02),
-        #          (img0, img0_depth, img3, img3_depth, flow03, back_flow03),
-        #          (img1, img1_depth, img3, img3_depth, flow13, back_flow13)]
         end_preprocess_time = time.time()
         print(f"preprocessing time = {end_preprocess_time - start_preprocess_time}")
-        # return
         
         start_augment_time = time.time()
         for group_idx, (imgA, imgA_depth, imgB, imgB_depth, flowAB, back_flowAB) in enumerate(group):
-            if np.random.randint(0, 2) == 1:
-                arr = [np.random.randint(0, 3)]    
-            else:
-                arr = [np.random.randint(5, 8)]
-
-            for augment_idx, augment_flow_type in enumerate(arr):
-            # for augment_idx, augment_flow_type in enumerate([0, 5, 6, 7, 1, 5, 6, 7, 2, 5, 6, 7]):
-            # for augment_idx, augment_flow_type in enumerate([0, 1, 2, 5, 6, 7]):
-            # for augment_idx, augment_flow_type in enumerate([5, 6, 7]):
+            for augment_idx, augment_flow_type in enumerate([0, 5, 6, 7, 1, 5, 6, 7, 2, 5, 6, 7]):
                 print(f"                                        \r", end='')
-                # print(f"augmenting ... {group_idx}_{augment_idx}\r", end='')
-                print(f"augmenting ... {group_idx}\r", end='')
+                print(f"augmenting ... {group_idx}_{augment_idx}\r", end='')
 
-                if not augment_small:
-                    set1, set2, _, set3 = augment_flow(imgA, imgA_depth, imgB, imgB_depth, flowAB,
-                                                       back_flowAB, device=self.device,
-                                                       augment_flow_type=augment_flow_type)
-                else:
-                    set1, set2, _, set3 = augment_flow_small(imgA, imgA_depth, imgB, imgB_depth, flowAB,
-                                                             back_flowAB, device=self.device,
-                                                             augment_flow_type=augment_flow_type)
+                set1, set2, _, set3 = augment_flow(imgA, imgA_depth, imgB, imgB_depth, flowAB,
+                                                   back_flowAB, device=self.device,
+                                                   augment_flow_type=augment_flow_type)
 
-                to_save_data1 = torch.cat([set1[i] for i in range(0, 4)], axis=0) # img0, img0_depth, flow01, back_flow01
-                                                                                  #  0:3         3:4     4:6          6:8
-                to_save_data2 = torch.cat([set2[i] for i in range(2, 6)], axis=0) # flow01, back_flow01, img1, img1_depth
-                                                                                  #    0:2          2:4   4:7         7:8
-                # to_save_data1 = torch.cat(set1)
-                # to_save_data2 = torch.cat(set2)
+                to_save_data1 = torch.cat([set1[i] for i in range(0, 4)], axis=0)
+                to_save_data2 = torch.cat([set2[i] for i in range(2, 6)], axis=0
 
                 to_save_data1_np = to_save_data1.detach().cpu().numpy()
                 to_save_data2_np = to_save_data2.detach().cpu().numpy()
 
-                 # 0:3,        3:4,  4:7,        7:8,   8:10,       10:12
                 assert to_save_data1_np.shape == (8, h, w), "wrong augmented data1"
                 assert to_save_data2_np.shape == (8, h, w), "wrong augmented data2"
-                # if to_save_data1_np.shape != (8, h, w) or to_save_data2_np.shape != (8, h, w):
-                #     print(f"something wrong when preprocess {output_dir}")
-                #     sys.exit()
 
-                np.savez_compressed(f"{output_dir}/{group_idx}_1.npz",
-                                    # augment_img=0,
+                np.savez_compressed(f"{output_dir}/{group_idx}_{augment_idx}_1.npz",
                                     img_depth_flow=to_save_data1_np,
                                     augment_flow_type=augment_flow_type)
-                np.savez_compressed(f"{output_dir}/{group_idx}_2.npz",
-                                    # augment_img=1,
+                np.savez_compressed(f"{output_dir}/{group_idx}_{augment_idx}_2.npz",
                                     img_depth_flow=to_save_data2_np,
                                     augment_flow_type=augment_flow_type)
-
                 
-                # set1_output_dir = f"{test_output_dir}/{group_idx}_1"
-                # set2_output_dir = f"{test_output_dir}/{group_idx}_2"
-                # if not os.path.exists(set1_output_dir):
-                #     os.makedirs(set1_output_dir)
-                # if not os.path.exists(set2_output_dir):
-                #     os.makedirs(set2_output_dir)
-
-                # set1_warped_img, _, _ = self.fw(set1[0], set1[2], set1[1])
-                # set2_warped_img, _, _ = self.fw(set2[0], set2[2], set2[1])
-
-                # cv2.imwrite(f"{set1_output_dir}/img0.png", set1[0].permute(1, 2, 0).cpu().numpy())
-                # plt.imsave(f"{set1_output_dir}/img0_depth.png", 1 / set1[1][0].cpu().numpy(), cmap="magma")
-                # cv2.imwrite(f"{set1_output_dir}/img1.png", set1[4].permute(1, 2, 0).cpu().numpy())
-                # plt.imsave(f"{set1_output_dir}/img1_depth.png", 1 / set1[5][0].cpu().numpy(), cmap="magma")
-                # cv2.imwrite(f"{set1_output_dir}/warped_img1.png", set1_warped_img.permute(1, 2, 0).cpu().numpy())
-                # cv2.imwrite(f"{set2_output_dir}/img0.png", set2[0].permute(1, 2, 0).cpu().numpy())
-                # plt.imsave(f"{set2_output_dir}/img0_depth.png", 1 / set2[1][0].cpu().numpy(), cmap="magma")
-                # cv2.imwrite(f"{set2_output_dir}/img1.png", set2[4].permute(1, 2, 0).cpu().numpy())
-                # plt.imsave(f"{set2_output_dir}/img1_depth.png", 1 / set2[5][0].cpu().numpy(), cmap="magma")
-                # cv2.imwrite(f"{set2_output_dir}/warped_img1.png", set2_warped_img.permute(1, 2, 0).cpu().numpy())
-                # cv2.imwrite(f"{set1_output_dir}/flow01.png", utils.color_flow(set1[2].permute(1, 2, 0).unsqueeze(0).cpu())[1])
-                # cv2.imwrite(f"{set2_output_dir}/flow01.png", utils.color_flow(set2[2].permute(1, 2, 0).unsqueeze(0).cpu())[1])
-
-                # if set3 is not None:
-                #     # special_flow, back_special_flow = set3
-                #     cv2.imwrite(f"{set1_output_dir}/special_flow.png", utils.color_flow(set3[1].permute(1, 2, 0).unsqueeze(0).cpu())[1])
-                #     cv2.imwrite(f"{set2_output_dir}/special_flow.png", utils.color_flow(set3[0].permute(1, 2, 0).unsqueeze(0).cpu())[1])
 
         end_augment_time = time.time()
         print(f"augmenting time = {end_augment_time - start_augment_time}")
@@ -970,19 +498,12 @@ class PreprocessPlusAugment(nn.Module):
         del back_flow01, back_flow12
         del img2_prime, img2_depth_prime, back_flow02_prime
         del img3_prime, img3_depth_prime, back_flow13_prime
-        # del fw, cf, bf
         del output_dir
 
         del start_augment_time, end_augment_time
         del start_preprocess_time, end_preprocess_time
 
         del to_save_data0
-        # del to_save_data3, to_save_data4
-        # del imgi, imgi_depth, flow0i, back_flow0i
-        # del flowii1, back_flowii1
-        # del img0_all, img0_all_fw, imgi1, imgi1_depth, back_flow0i1
-        # del data, continuous_data
-        # del flow0a, imga, imga_depth, back_flow0a
 
 def read_args():
     parser = ArgumentParser()
@@ -992,7 +513,6 @@ def read_args():
     parser.add_argument('--split', default=1, type=int)
     parser.add_argument('--split_id', default=0, type=int)
     parser.add_argument('--specific_epoch_idx', default=-1, type=int)
-    parser.add_argument('--subdir', default='')
 
     args = parser.parse_args()
     return args
@@ -1001,34 +521,26 @@ def read_args():
 if __name__ == "__main__":
     args = read_args()
 
-    seed_mapping = {"ReDWeb": 0, "ETH3D": 10, "DIML": 30, "test_ReDWeb": 20, "filted_ReDWeb": 40, "COCO": 100}
+    seed_mapping = {"DIML": 30, "ReDWeb": 40}
     utils.set_seed(12345 + seed_mapping[args.dataset])
     print(f"{12345 + seed_mapping[args.dataset] = }")
     print(args)
 
     if args.dataset == "DIML":
-        dataset = DIML("datasets/DIML")
-        output_dir = f"AugmentedDatasets/DIML"
+        dataset = DIML()
+        output_dir = f"datasets/AugmentedDatasets/DIML"
         is_stereo = True
-    elif args.dataset == "filted_ReDWeb":
-        dataset = FiltedReDWeb("datasets/ReDWeb_V1")
-        output_dir = "AugmentedDatasets/filted_ReDWeb"
-        is_stereo = False
-    elif args.dataset == "COCO":
-        # dataset = COCO("datasets/COCO", num_images=4000)
-        dataset = COCO("datasets/COCO")
-        output_dir = f"AugmentedDatasets/dCOCO"
+    elif args.dataset == "ReDWeb":
+        dataset = ReDWeb()
+        output_dir = "datasets/AugmentedDatasets/ReDWeb"
         is_stereo = False
     else:
         print(f"{args.dataset = }")
 
-    output_dir = f"{output_dir}/{args.subdir}/"
     device = f"cuda:{args.gpu}"
-
     ppa = PreprocessPlusAugment(device=device)
 
     split_len = int((len(dataset) + args.split - 1) // args.split)
-    # split_len = (len(dataset)) / args.split
     start = int(args.split_id * split_len)
     end = int((args.split_id + 1) * split_len)
     if args.split_id == args.split - 1:
@@ -1037,39 +549,13 @@ if __name__ == "__main__":
     data = dataset[0]
     print(f"{len(dataset) = }, {is_stereo = }, {start = }, {end = }")
 
-    # resize = T.Resize((480, 640))
-    for epoch_idx, augment_small in enumerate([False, False, False, False, False]):
-        if args.specific_epoch_idx != -1 and args.specific_epoch_idx != epoch_idx:
-            continue
-
-        if epoch_idx < 3:
-            continue
-
-
+    for epoch_idx in range(2):
         for img_idx in range(start, end):
-            if epoch_idx == 3 and img_idx < 19620:
-            # if epoch_idx == 3 and img_idx < 9623:
-                continue
-
-
-            # if img_idx not in [25,33,44,45,50,70,74,88,99,138,
-            #                    203,207,237,240,249,250,283,287,318,319,
-            #                    320,349,397,404,482,523,528,556,561,562]:
-            #     continue
             print(f"{img_idx + 1} / {len(dataset)}: {epoch_idx = }, seed = {12345 + img_idx + epoch_idx * len(dataset)}")
             utils.set_seed(12345 + img_idx + epoch_idx * len(dataset))
             datas = dataset[img_idx]
 
-            # if args.dataset == "filted_ReDWeb":
-            #     img0, img0_depth = datas
-            #     img0 = resize(img0)
-            #     img0_depth = resize(img0_depth)
-            #     datas = (img0, img0_depth)
-
-            # output_dir = output_dirs[int(img_idx / EVERY_IMAGES_CHANGE_OUTPUT_DIR)]
             if not os.path.exists(output_dir):
                 os.makedirs(output_dir)
 
-            ppa(datas, f"{output_dir}/{img_idx + epoch_idx * len(dataset)}", is_stereo, augment_small)
-            # break
-        # break
+            ppa(datas, f"{output_dir}/{img_idx + epoch_idx * len(dataset)}", is_stereo)
