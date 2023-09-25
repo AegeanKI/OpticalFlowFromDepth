@@ -127,8 +127,8 @@ python -m torch.distributed.launch --nproc_per_node=0 --master_port=9988 main.py
     --padding_factor 16 --upsample_factor 8 --with_speed_metric --val_freq 1000 \
     --save_ckpt_freq 10000 --num_steps 100000 \
     --add_classifier \
-    --classifier_args auxiliary_classifier/args.txt \
-    --classifier_checkpoint auxiliary_classifier/checkpoint.pth \
+    --classifier_args auxiliary_classifier/auxiliary_classifier_args.txt \
+    --classifier_checkpoint auxiliary_classifier/auxiliary_classifier_checkpoint.pth \
     2>&1 | tee -a ${checkpoint_dir}/train.log
 
 ```
