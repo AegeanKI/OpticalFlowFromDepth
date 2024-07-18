@@ -161,7 +161,19 @@ CUDA_VISIBLE_DEVICES=0 python main.py --eval --val_dataset kitti kitti12 sintel 
 * The training code and the testing code of the RAFT model is borrowed from [RAFT](https://github.com/princeton-vl/RAFT)
 * The training code and the testing code of the GMFlow model is borrowed from [GMFlow](https://github.com/haofeixu/gmflow)
 
+## Citation
 
+Please cite our paper and star this repository if it's helpful to your work!
+
+```Shell
+@inproceedings{huang2024skin,
+  title={Skin the sheep not only once: Reusing Various Depth Datasets to Drive the Learning of Optical Flow},
+  author={Sheng-Chi Huang, Wei-Chen Chiu},
+  booktitle={2024 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS)},
+  year={2024},
+  url={https://arxiv.org/abs/2310.01833}
+}
+```
 
 
 
